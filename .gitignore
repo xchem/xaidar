@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# My Files
+my*
+scrap*
+playground*
+
+# Git Secrets
+.gitsecret/keys/random_seed
+.gitsecret/keys
+.gitsecret/paths
+!*.secret
+credentials.enc
