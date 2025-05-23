@@ -8,6 +8,15 @@ wheels/
 
 # Virtual environments
 .venv
+# Data files
+data/s3Data/*
+data/s3ObjKeys/*
+data/s3Sizes/*
+data/treeObjs/*
+
+# Cookie cutter artifices
+xchem_db_project
+xchem_db_project.egg-info
 
 # My Files
 my*

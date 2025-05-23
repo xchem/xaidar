@@ -16,13 +16,17 @@ The goal of the project is to develop a data archive off of the XChem data for A
 <summary>
 <strong> xaidar</strong>: Contains all the scripts.
 </summary>
+<p> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Files</p>
 
 - `s3Utils.py`: Python wrapper around boto3 to aid interaction with object store.
 - `treeObj.py`: Python code to instantiate the treeObj base pythonic data structure.
 - `treeObjUtils.py`: Tools to load and save a treeObj instance, and view it.
 - `treeObjExtract.py`: Advanced tools to filter and identify object keys of interest.
 - `sqliteUtils.py`: Tools to extract wanted information from soakDatabase.sqlite files.
-- `gatewayApi.py`: Tools to interact with the API.
+- `gatewayApi.py`: Tools to interact with the API. 
+<p> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Folders</p>
+
+- `tasks`: This folder contains scripts to solve specific tasks
 </details>
 
 <details>
@@ -32,6 +36,7 @@ The goal of the project is to develop a data archive off of the XChem data for A
 
 - `s3Data`: Contains the data extracted from the S3 Object Store.
 - `s3ObjKeys`: Contains python pickle files, each corresponding to a subset of all Object Keys Found in Object Store, as a list of strings python object.
+- `s3Sizes`: Contains python pickle files, each corresponding to a dictionary with keys as a subset of object store keys and values the size of each object in bytes.
 - `treeObjs`: Contains python pickle files, each representing the file system structure native to the object keys, in the form of a list of lists python objects.
 </details>
 
