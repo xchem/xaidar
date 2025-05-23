@@ -38,6 +38,19 @@ def saveList( lstToSave, pathToSave, readMe = None):
         print( "Saved!" )
     else: raise Exception( "There is an error with the pathToSave argument" ) 
 
+def savePyObj( objToSave, pathToSave): 
+    if pathToSave != None:
+        with open(pathToSave, "wb") as file:
+            pickle.dump( objToSave, file)
+        # print( "Saved!" )
+    elif pathToSave == None:
+        date = datetime.today().strftime("%Y%m%d-%H%M") 
+        pathToSave = os.path.join( os.getcwd(),  f"{ date }.pkl" )
+        with open(pathToSave, "wb") as file:
+            pickle.dump( objToSave, file)
+        print( "Saved!" )
+    else: raise Exception( "There is an error with the pathToSave argument" ) 
+
 def countFiles(filesDir, maxFiles = None, filesList = None ):
     """
     Count the number of elements in each pickle file containing a list
