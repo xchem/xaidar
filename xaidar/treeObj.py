@@ -75,7 +75,7 @@ def get_item_depth( lst, depth):
 
 def openSubfolder( lst, depth):
     """
-    Gets all the items in a specific tree depth
+    Gets all the items from a specific tree depth downwards
     Args:
     - Depth (int): Represents the non-zero indexed level
 
