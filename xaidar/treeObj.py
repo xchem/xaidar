@@ -9,17 +9,21 @@ from anytree import Node, RenderTree
 from xaidar.filesUtils import getPklFileNames, loadPickle
 ### Sort the list of paths into hierarchical alphabetical order
 
-def sortPaths(pathsLst):
+def sortPaths(pathsLst, filesPath = True):
     """
     Sorts a list of paths in a hierarchical manner, ensuring that parent directories are ordered first before their subdirectories.
     Args:
     - pathsLst (list): Each element corresponds to a string path of format "root/Dir1/SubDir2/...".
+    - filesPath (bool): If true, This trims the file name, so that there are only folder paths
     Note:
     Make sure the formating of each path is so that it is divided by "/" and that there are no "/" at the beginning or end
     """
+    # This trims the file name, so that there are only folder paths
+    if filesPath:
+        truncatedPaths = list( set( [ "/".join( path.split("/")[ :-1 ] ) for path in pathsLst ] ) ) 
 
     # Split into steps of the path
-    foldersLst = [ ( len( path.split("/")) , path.split("/") ) for path in pathsLst ]
+    foldersLst = [ ( len( path.split("/")) , path.split("/") ) for path in truncatedPaths ]
 
     # Sort by size so that the larger paths come first
     foldersLst.sort( reverse = True, key= lambda x: x[0])
@@ -61,15 +65,34 @@ def get_item_depth( lst, depth):
     Gets all the items in a specific tree depth
     Args:
     - Depth (int): Represents the non-zero indexed level
+
+    Return:
+    - Items found at that specific depth
     """
     for _ in range( depth - 1): # -1 bc it already start at level one, and at the return it opens one extra level
         lst = lst[-1]
     return lst[:-1]
 
+def openSubfolder( lst, depth):
+    """
+    Gets all the items in a specific tree depth
+    Args:
+    - Depth (int): Represents the non-zero indexed level
+
+    Return:
+    - Subfolder with content for all the deeper layers
+    """
+    for _ in range( depth - 1): # -1 bc it already start at level one, and at the return it opens one extra level
+        lst = lst[-1]
+    return lst
+
 # Recursively
 def openNestedLst(lst, maxDepth , depth = 0  ):
     """
     Tool used to open nested lists in the form: [ ..., [nested list] ]
+
+    Return:
+    - Items found at that specific depth
     """
     depth += 1
     if depth == maxDepth:
@@ -85,6 +108,9 @@ def pinchLevel(tree, depth : int, flat = False ):
     - depth: Level to extract folders from
     - flat (bool): If True - gives you a list of all folders, If False - gives you a list of lists, each list
                     representing a folder from the preceding level
+    Return:
+    - Items found at that specific depth
+    
     Note:
     - This is not zero indexed, to the first depth = 1, which represents the root, or the first tree[:-1] without going down a level (tree[-1])
     """
@@ -107,7 +133,7 @@ def pinchLevel(tree, depth : int, flat = False ):
 def createFolderTree( orderedFolderPathS, delimiter = "/"): #
     """
     Args:
-    - treeMaxDepth: Max number of directories to tresspass to reach a file
+    - orderedFolderPathS: An ordered list of paths with only folder and subfolders, but no files
     """
     folderTree = [ [], [ [] ] ] 
     treeMaxDepth = 0
@@ -119,7 +145,7 @@ def createFolderTree( orderedFolderPathS, delimiter = "/"): #
 
         tree = folderTree
         folderID = []
-        for part in  parts :     
+        for part in  parts:   
             if part not in tree[ -2 ]:  # Since it is in alphabetical order, it will either exist in the last folder or a new folder must be created
                 tree[-2].append( part)
                 tree[ -1 ].insert( -1, [] )
@@ -195,8 +221,8 @@ def createTree(lstOfPathS):
     Args:
     - lstOfPath :
     """
-    foldersLst = list( set( [ "/".join( path.split("/")[ :-1 ] ) for path in lstOfPathS ] ) ) 
-    orderedFolderLst = sortPaths( foldersLst )
+    # foldersLst = list( set( [ "/".join( path.split("/")[ :-1 ] ) for path in lstOfPathS ] ) ) 
+    orderedFolderLst = sortPaths( lstOfPathS, filesPath = True )
     # print("success")
     folderTree, folderTreeMaxDepth, foldersIDS = createFolderTree( orderedFolderLst ) # 1 min
     # print("success")
@@ -204,7 +230,7 @@ def createTree(lstOfPathS):
     # print("success")
     fileTree = createFileTree(lstOfPathS, orderedFolderLst, folderTree, foldersIDS, foldersCount) # 7 min 
     # print("success")
-    return fileTree, folderTree, folderTreeMaxDepth,  foldersIDS, foldersCount, foldersLst
+    return fileTree, folderTree, folderTreeMaxDepth,  foldersIDS, foldersCount, orderedFolderLst
 
 
 def convertPathstoTree(pklDir: list, saveDir):
@@ -369,7 +395,7 @@ def viewLstPathS(paths, maxlevel = 10):
 
 def visualizeTree(tree, depth = 0, minMaxDepth = (0, 20) ):
     """
-    Tool used to open nested lists in the form: [ ..., [nested list] ]
+    Tool used to open nested lists in the form: Level 1: [ ], Level 2: [ ], ...
     Args:
     - tree
     - depth: This is an internal variable that changes throughout the recursions.
@@ -380,6 +406,28 @@ def visualizeTree(tree, depth = 0, minMaxDepth = (0, 20) ):
         return None
     if minMaxDepth[0] <= depth <= minMaxDepth[1]: print( f"  {depth}\t| {tree[:-1]}" )
     return visualizeTree( tree[-1], depth = depth, minMaxDepth = minMaxDepth )
+
+def displayTree( tree, targetDepth ):
+    """
+    Display a nested list in the most raw format: [ ..., [nested list] ]
+    Args:
+    - tree: Nested List of Lists nested at the last index [-1] - i.e. [ [], ..., [], [ [], ..., [ ... ] ] ]
+    - targetDepth: Depth to finish Displaying tree
+    Return:
+    """
+    displayTree, recursvTree = [  ], tree
+    tempTree = displayTree
+    for idx in range(targetDepth):
+        # print( recursvTree[:-1] )
+        tempTree.extend( recursvTree[:-1]  )
+        if idx == targetDepth -1:
+            break
+
+        tempTree.append( [] )
+        tempTree = tempTree[-1]
+        recursvTree = recursvTree[-1]
+
+    print( "\t",displayTree,"\n")
 
 
 def viewTree(tree, treeDepth, foldersCount, viewFiles = True ):
@@ -679,9 +727,17 @@ def traceBackPath(targetItem, tree, foldersCount, treeMaxDepth, startDepth = 1):
 
 
 
-def completeTraceBackPath(targetItem, tree, foldersCount, treeMaxDepth):
+def findFolderFiles(targetItem, tree, foldersCount, treeMaxDepth, regex = None):
+    """
+    This function the paths for all the files that live inside any folder that exists in the tree.
+    Args:
+    - targetItem: The folder or file to search for
+    - tree: The tree object (folder or file - file is recommended) used to identify where the folder of interest lives
+    - foldersCount: The count of folders at each level
+    - treeMaxDepth: The maximum depth of the tree to search for the target item
+    """
     resultPaths = []
-    allTargetIdxs = findAllTargetIdxs(targetItem, tree, startDepth = 1, endDepth= treeMaxDepth+2  )
+    allTargetIdxs = findAllTargetIdxs(targetItem, tree, startDepth = 1, endDepth= treeMaxDepth+2 , regexpression = regex )
 
     if allTargetIdxs == []: 
         return None
@@ -692,15 +748,20 @@ def completeTraceBackPath(targetItem, tree, foldersCount, treeMaxDepth):
             gammaFolderID = getGammaID(supraFolderIdx, folderIdx, targetLevel, folderSumCount )
             folderID = convertGammaIDtoFolderID( gammaFolderID, foldersCount )
             folderPath = convertIDtoPath( tree, foldersCount, folderID)
-            resultPaths.append( ( folderPath, folderID ) )
+            fileIDs, filePaths = getFiles(tree, foldersCount, folderID = folderID) # Get files in the folder
+            resultPaths.append( ( filePaths, folderPath, fileIDs, folderID ) )
         return resultPaths
 
 
 def getFiles(tree,  foldersCount, folderID = None, folderPath = None):
     """
+    Get all files in a folder based on folderID or folderPath.
     Args:
     - startDepth: Minimum is 1
     - folderID: Smallest is [ 0 ] -> root 
+    Return: ( fileIDS, filePaths )
+    - fileIDS (list): List of file IDs in the folder
+    - filePaths (list): List of file paths in the folder
     """
     if folderPath != None:
         print( folderPath )
