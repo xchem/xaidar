@@ -1,6 +1,7 @@
 # xaidar associated with S3 operations
 
 import os
+from pathlib import Path
 import sys
 import boto3
 import pickle
@@ -11,7 +12,7 @@ import concurrent
 import json
 from cryptography.fernet import Fernet
 
-from xaidar.filesUtils import saveList, roundBytes, loadPickle
+from xaidar.filesUtils import savePyObj, saveList, roundBytes, loadPickle
 
 # Current Accessible S3 Storage Systems
 cred = {"XChem":                            # For xchem, the credentials can be found in credentials.enc or dls_keys.zip
@@ -99,30 +100,42 @@ def initialize( store, cred_dict = cred ):
     )
     return client
 
+#### Get Metadata For All Objects in Data Store ########################################################################################################
 
-# Get number of files a bucket or several buckets
-def get_object_stats(client, bucket_list:list, page_size = 100, maxitems = 1000):
-    size = {}
-    for bucket_key in bucket_list:
-        paginator = client.get_paginator('list_objects_v2')
-        pages = paginator.paginate(Bucket=bucket_key, PaginationConfig = {"PageSize": page_size, "MaxItems":maxitems })
-        size[bucket_key] = page_size * ( len( [ None for _ in pages ] ) - 1 )
-        # for page in pages:
-        #     for obj in page['Contents']:
-        #         print(obj['Key'], obj['Size'], obj['LastModified'])
-    return size
+def lstAllKeys( response, lstOfKeys):
 
-# Outputs a dictionary with the number of objects found in each bucket
-def objectCount(client, bucket_list:list, page_size = 1000 , maxitems = 10000 ):
-    size = {}
-    for bucket_key in bucket_list:
-        paginator = client.get_paginator('list_objects_v2')
-        pages = paginator.paginate(Bucket=bucket_key, PaginationConfig = {"PageSize": page_size, "MaxItems":maxitems } )
-        size[bucket_key] = sum( [ len( page[ "Contents"] ) for page in pages if "Contents" in page ] )
-    return size
+    if lstOfKeys["Content"] == None: lstOfKeys["Content"] =  [] 
+
+    contToken = response["NextContinuationToken"] if "NextContinuationToken" in response else None
+    lstOfKeys[0] = f"NxTkn-{ contToken  }"
+    if "Contents" in response:
+        lstOfKeys.extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+
+    output = {"size": None, "Content": None}
+    output["size"] = len( lstOfKeys )
+    output["Content"] = lstOfKeys
+    
+    return output
+
+def getAllObjSizes( response, objSizes):
+    
+    if objSizes["Content"] == None: objSizes["Content"] = { "Keys": [], "Sizes": [], "NxToken": None} 
+
+    # print( type(response) )
+    contToken = response["NextContinuationToken"] if "NextContinuationToken" in response else None
+    objSizes["NxToken"] = f"NxTkn-{ contToken  }"
+    if "Contents" in response:
+        objSizes["Content"]["Keys"].extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+        objSizes["Content"]["Sizes"].extend( [ obj["Size"] for obj in response["Contents"] if "Contents" in response ] )
+
+    objSizes["Size"] = len( objSizes["Content"]["Keys"] )
+    
+    return objSizes
 
 
-def listKeys(bucketKey: str, client, save = True,  saveDir = "SavedLsts", fragSize = 1, maxLen = None, frag = True):
+def iterateObjStore(bucket_name, client, save = True, function = None, saveDir = "ObjStoreContent", fragSize = 1, maxLen = None, frag = True, saveObjContent = None):
+    
+
     """
     This function has many options:
     - Object selection:
@@ -136,116 +149,86 @@ def listKeys(bucketKey: str, client, save = True,  saveDir = "SavedLsts", fragSi
         - - Save in one pickle file -> (frag = False)
         - - Save in many pickle files -> ( Frag = True )
     
-
     Args:
     - bucketKey
     - client -> boto3.client object
+    - Function: function must output a dictionary with: "size" key = int of number of elements | "content" key = python object that contains information wanted. Args: response & saveObj
     - save (bool) -> if True, it will output pickle files with lists of object keys. If False, will output a list object.
-    - saveDir -> Name of directory created to save files
-    - fragSize -> Units of  1000
-    - maxLen -> Max Number of Objects being iterated. Must be higher than the fragSize to have an effect. That is the minimum size. Same units as fragSize
+    - saveDir (str) -> Name of directory created to save files
+    - fragSize (float) -> Units of  1000
+    - maxLen (float)-> Max Number of Objects being iterated. Must be higher than the fragSize to have an effect. That is the minimum size. Same units as fragSize
     - Frag (bool) -> Tells whether to save the resul in small fragment files (True) or in one big file (False)
     Note: For linux users, must alter the f".\\{saveDir}" to /{saveDir}
     
     Return:
-    - Save one or more lists (lstKeys), where the 1st element is the nextToken and the rest are the object keys 
+    - Save one or more lists (lstKeys), where the 1st element is the nextToken and the rest are the object keys
+
+
+
     """
-    kwargs = { "Bucket" : bucketKey }
+    
+    saveObj = { "Size": 0, "Content" : saveObjContent }
+    kwargs = { "Bucket" : bucket_name }
     if fragSize < 1: kwargs["MaxKeys"] = int( 1e3*fragSize )
     fragmentSize = int( 1e3*fragSize )
     fragCount = 1
-    if os.path.exists( f".\\{saveDir}"):
-        dirIdx = len( [ dir for dir in os.listdir(".") if re.search(f"^{saveDir}", dir) ] ) + 1  
-        saveDir = f"{saveDir}_{dirIdx}"
-
 
     response = client.list_objects_v2( **kwargs )
     kwargs["ContinuationToken"]  = response["NextContinuationToken"] if "NextContinuationToken" in response else None
-    contToken = kwargs["ContinuationToken"] 
-    lstKeys = [ f"NxTkn-{  contToken }" ]
-    lstKeys.extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+    saveObj = function( response, saveObj )
 
     # Save first list
     if save:
-        if not os.path.exists( f".\\{saveDir}"): os.mkdir(saveDir )
-        path = os.path.join( f".\\{saveDir}", f"frag{fragCount}.pkl" )
+        Path(f"./{saveDir}").mkdir(exist_ok=True)
+        path = Path( f"./{saveDir}", f"frag{fragCount}.pkl" )
         if frag: 
-            saveList( lstKeys, path )
-            contToken = kwargs["ContinuationToken"]
-            lstKeys = [ f"NxTkn-{ contToken  }" ]
+            savePyObj( saveObj, path )
+            saveObj = { "Size": 0, "Content" : None }
 
     while kwargs["ContinuationToken"] != None:
         if  maxLen:
-            if fragCount*fragmentSize >= maxLen*1000:
+            if fragCount*fragmentSize >= maxLen*1000 and frag:
+                break
+            elif saveObj["Size"] >= maxLen*1000:
                 break
         
         response = client.list_objects_v2( **kwargs )   
         kwargs["ContinuationToken"] = response["NextContinuationToken"] if "NextContinuationToken" in response else None
-        contToken =  kwargs["ContinuationToken"]
-        lstKeys[0] = f"NxTkn-{ contToken  }"
-        if "Contents" in response:
-            lstKeys.extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+
+        saveObj = function(  response, saveObj )
 
         # Save the current list and reset it for the next fragment of objects 
-        if len( lstKeys) >= fragmentSize and frag and save:
+        if saveObj["Size"] >= fragmentSize and frag and save:
             fragCount += 1
-            if not os.path.exists( f".\\{saveDir}"): os.mkdir(saveDir )
-            path = os.path.join( f".\\{saveDir}", f"frag{fragCount}.pkl" )
-            saveList( lstKeys, path )
-            contToken =  kwargs["ContinuationToken"]
-            lstKeys = [ f"NxTkn-{ contToken }" ]
+            Path(f"./{saveDir}").mkdir(exist_ok=True)
+            path = Path( f"./{saveDir}", f"frag{fragCount}.pkl" )
+            savePyObj( saveObj, path )
+
+            saveObj = { "Size": 0, "Content" : None }
 
 
-    if len( lstKeys ) > 0 and save: saveList( lstKeys, os.path.join( f".\\{saveDir}", f"frag{fragCount+1}.pkl" ) )
+    if saveObj != None and save: savePyObj( saveObj, Path( f"./{saveDir}", f"frag{fragCount+1}.pkl" ) )
 
     if save and frag: print(f"Finished saving around { fragCount*fragmentSize } keys.")
-    elif save and not frag: print(f"Finished saving around { len( lstKeys ) } keys.")
-    else: return lstKeys
+    elif save and not frag: print( "Finished saving around {} keys.".format( saveObj["Size"] ))
+    else: return saveObj
 
-def getObjectSize( bucket, client, objectList : list ):
-    """
-    Get the size of one object, several objects, or a whole bucket.
-    Note that if using listKeys, you get a list of objects with content. Other
-    """
-    bucketByteSize = 0
-    bucketSize = ""
-    for key in objectList:
-        # print( client.head_object( Bucket = bucket, Key = key)["ContentLength"]  )
-        bucketByteSize += int( client.head_object(  Bucket = bucket, Key = key)["ContentLength"] )
 
-    units = ['Byte', 'KB', 'MB', 'GB', 'TB']
-    for n, unit in  zip( range( 0, 13, 3), units) :
-        if bucketByteSize >= 1*10**n: bucketSize = f"{ bucketByteSize // (1*10**n) }{unit}"
-        else: break
+#### Get Metadata For The Overall Bucket ################################################
 
-    print( bucketSize )    
-    return bucketByteSize
+# Get number of files a bucket or several buckets
+def getBucketSize(client, bucket_list:list, page_size = 100, maxitems = 1000):
+    size = {}
+    for bucket_key in bucket_list:
+        paginator = client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=bucket_key, PaginationConfig = {"PageSize": page_size, "MaxItems":maxitems })
+        size[bucket_key] = page_size * ( len( [ None for _ in pages ] ) - 1 )
+        # for page in pages:
+        #     for obj in page['Contents']:
+        #         print(obj['Key'], obj['Size'], obj['LastModified'])
+    return size
 
-def parallelObjectSize(bucket, client, lstObjectKeys, max_workers = 10):
-    
-    """
-    Get the size of one object, several objects, or a whole bucket with multithreading.
-    """
-    size = 0
-    
-    def measureObject( bucket, client, objectKey ):
-        return int( client.head_object(  Bucket = bucket, Key = objectKey)["ContentLength"] )
-    
-    with concurrent.futures.ThreadPoolExecutor( max_workers = max_workers ) as executor:
-        futuresLst = [ executor.submit( measureObject, bucket, client, objectKey) for 
-                    objectKey in  lstObjectKeys ]
-        for future in  concurrent.futures.as_completed( futuresLst):
-            size += future.result()
-    
-    units = ['Byte', 'KB', 'MB', 'GB', 'TB']
-    for n, unit in  zip( range( 0, 13, 3), units) :
-        if size >= 1*10**n: bucketSize = f"{ size // (1*10**n) }{unit}"
-        else: break
-    
-    print(bucketSize)
-    return size 
-
-def getBucketSize(bucket, client, keysDirPath, max_workers = 30):
+def getBucketSize_v2(bucket, client, keysDirPath, max_workers = 30):
     """
     Task: Load several lists of pickle files with object keys, obtains the size
     of each object, and sums together the total bucket size. It does so in parallel.
@@ -273,6 +256,93 @@ def getBucketSize(bucket, client, keysDirPath, max_workers = 30):
 
 
 
+# Outputs a dictionary with the number of objects found in each bucket
+def getObjCount(client, bucket_list:list, page_size = 1000 , maxitems = 10000 ):
+    size = {}
+    for bucket_key in bucket_list:
+        paginator = client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=bucket_key, PaginationConfig = {"PageSize": page_size, "MaxItems":maxitems } )
+        size[bucket_key] = sum( [ len( page[ "Contents"] ) for page in pages if "Contents" in page ] )
+    return size
+
+
+
+########## Get Metadata for specific Object lists ########################################################################################
+
+def getObjectSize( bucket, client, objectList : list ):
+    """
+    Get the size of one object, several objects, or a whole bucket.
+    Note that if using listKeys, you get a list of objects with content. Other
+    """
+    bucketByteSize = 0
+    bucketSize = ""
+    for key in objectList:
+        # print( client.head_object( Bucket = bucket, Key = key)["ContentLength"]  )
+        bucketByteSize += int( client.head_object(  Bucket = bucket, Key = key)["ContentLength"] )
+
+    units = ['Byte', 'KB', 'MB', 'GB', 'TB']
+    for n, unit in  zip( range( 0, 13, 3), units) :
+        if bucketByteSize >= 1*10**n: bucketSize = f"{ bucketByteSize // (1*10**n) }{unit}"
+        else: break
+
+    print( bucketSize )    
+    return bucketByteSize
+
+# ### GPT Vibe Code 
+# def getObjSizes(bucket_name, client):
+#     """
+#     Efficiently lists the size of each object in an S3 bucket.
+
+#     Args:
+#         bucket_name (str): The name of the S3 bucket.
+#     """
+
+#     paginator = client.get_paginator('list_objects_v2')
+
+#     try:
+#         # Create a PageIterator from the Paginator
+#         page_iterator = paginator.paginate(Bucket=bucket_name)
+
+#         print(f"Object sizes in bucket: {bucket_name}\n")
+
+#         for page in page_iterator:
+#             if "Contents" in page:
+#                 for obj in page['Contents']:
+#                     # obj is a dictionary containing metadata
+#                     key = obj['Key']
+#                     size = obj['Size'] # Size in bytes
+#                     print(f"Key: {key}, Size: {size} bytes")
+#             break
+
+#     except Exception as e:
+#         print(f"An error occurred: {e}")
+
+def parallelObjectSize(bucket, client, lstObjectKeys, max_workers = 10):
+    
+    """
+    Get the size of one object, several objects, or a whole bucket with multithreading.
+    """
+    size = 0
+    
+    def measureObject( bucket, client, objectKey ):
+        return int( client.head_object(  Bucket = bucket, Key = objectKey)["ContentLength"] )
+    
+    with concurrent.futures.ThreadPoolExecutor( max_workers = max_workers ) as executor:
+        futuresLst = [ executor.submit( measureObject, bucket, client, objectKey) for 
+                    objectKey in  lstObjectKeys ]
+        for future in  concurrent.futures.as_completed( futuresLst):
+            size += future.result()
+    
+    units = ['Byte', 'KB', 'MB', 'GB', 'TB']
+    for n, unit in  zip( range( 0, 13, 3), units) :
+        if size >= 1*10**n: bucketSize = f"{ size // (1*10**n) }{unit}"
+        else: break
+    
+    print(bucketSize)
+    return size 
+
+
+
 def uploadManyFiles( bucket, client, objectNames:list, filesPaths: list, ):
 
     def uploadFile( bucket, client, objectName, filePath, ):
@@ -296,6 +366,89 @@ def uploadManyFiles( bucket, client, objectNames:list, filesPaths: list, ):
 
 
 ########### Obsolete Code ###################################
+
+#####  New Version is iterateObjStore( function = lstKeys )
+# def listKeys(bucketKey: str, client, save = True,  saveDir = "SavedLsts", fragSize = 1, maxLen = None, frag = True):
+#     """
+#     This function has many options:
+#     - Object selection:
+#         - browse through all objects -> (maxLen = None)
+#         - browse through the first n objects -> (maxLen = n )
+    
+#     - Output forms:
+#         - return a list of objects -> (save = False, frag = False)
+#         - - NOTE: Only use this option for a small size of object keys
+#         - save a list of objects  -> (save = True)
+#         - - Save in one pickle file -> (frag = False)
+#         - - Save in many pickle files -> ( Frag = True )
+    
+
+#     Args:
+#     - bucketKey
+#     - client -> boto3.client object
+#     - save (bool) -> if True, it will output pickle files with lists of object keys. If False, will output a list object.
+#     - saveDir -> Name of directory created to save files
+#     - fragSize -> Units of  1000
+#     - maxLen -> Max Number of Objects being iterated. Must be higher than the fragSize to have an effect. That is the minimum size. Same units as fragSize
+#     - Frag (bool) -> Tells whether to save the resul in small fragment files (True) or in one big file (False)
+#     Note: For linux users, must alter the f".\\{saveDir}" to /{saveDir}
+    
+#     Return:
+#     - Save one or more lists (lstKeys), where the 1st element is the nextToken and the rest are the object keys 
+#     """
+#     kwargs = { "Bucket" : bucketKey }
+#     if fragSize < 1: kwargs["MaxKeys"] = int( 1e3*fragSize )
+#     fragmentSize = int( 1e3*fragSize )
+#     fragCount = 1
+#     if os.path.exists( f".\\{saveDir}"):
+#         dirIdx = len( [ dir for dir in os.listdir(".") if re.search(f"^{saveDir}", dir) ] ) + 1  
+#         saveDir = f"{saveDir}_{dirIdx}"
+
+
+#     response = client.list_objects_v2( **kwargs )
+#     kwargs["ContinuationToken"]  = response["NextContinuationToken"] if "NextContinuationToken" in response else None
+#     contToken = kwargs["ContinuationToken"] 
+#     lstKeys = [ f"NxTkn-{  contToken }" ]
+#     lstKeys.extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+
+#     # Save first list
+#     if save:
+#         if not os.path.exists( f".\\{saveDir}"): os.mkdir(saveDir )
+#         path = os.path.join( f".\\{saveDir}", f"frag{fragCount}.pkl" )
+#         if frag: 
+#             saveList( lstKeys, path )
+#             contToken = kwargs["ContinuationToken"]
+#             lstKeys = [ f"NxTkn-{ contToken  }" ]
+
+#     while kwargs["ContinuationToken"] != None:
+#         if  maxLen:
+#             if fragCount*fragmentSize >= maxLen*1000:
+#                 break
+        
+#         response = client.list_objects_v2( **kwargs )   
+#         kwargs["ContinuationToken"] = response["NextContinuationToken"] if "NextContinuationToken" in response else None
+#         contToken =  kwargs["ContinuationToken"]
+#         lstKeys[0] = f"NxTkn-{ contToken  }"
+#         if "Contents" in response:
+#             lstKeys.extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+
+#         # Save the current list and reset it for the next fragment of objects 
+#         if len( lstKeys) >= fragmentSize and frag and save:
+#             fragCount += 1
+#             if not os.path.exists( f".\\{saveDir}"): os.mkdir(saveDir )
+#             path = os.path.join( f".\\{saveDir}", f"frag{fragCount}.pkl" )
+#             saveList( lstKeys, path )
+#             contToken =  kwargs["ContinuationToken"]
+#             lstKeys = [ f"NxTkn-{ contToken }" ]
+
+
+#     if len( lstKeys ) > 0 and save: saveList( lstKeys, os.path.join( f".\\{saveDir}", f"frag{fragCount+1}.pkl" ) )
+
+#     if save and frag: print(f"Finished saving around { fragCount*fragmentSize } keys.")
+#     elif save and not frag: print(f"Finished saving around { len( lstKeys ) } keys.")
+#     else: return lstKeys
+
+
 
 # # Used before fragLstObjectKeys() created
 # # Outputs a dictionary with a list of object keys for each bucket

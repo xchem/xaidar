@@ -38,7 +38,7 @@ def saveList( lstToSave, pathToSave, readMe = None):
         print( "Saved!" )
     else: raise Exception( "There is an error with the pathToSave argument" ) 
 
-def savePyObj( objToSave, pathToSave): 
+def savePyObj( objToSave, pathToSave ): 
     if pathToSave != None:
         with open(pathToSave, "wb") as file:
             pickle.dump( objToSave, file)
