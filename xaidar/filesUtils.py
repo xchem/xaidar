@@ -254,6 +254,9 @@ def splitPanDDaData( panddaPath , savedFolder = []):
 
     saveList( record, os.path.join( savedFolder, "000-record" ) )
 
+
+
+
 # def convertPathstoTree(pklDir: list, saveDir):
 #     """
 #     Takes a directory of pkl files with a list of paths in each, and converts and saves 

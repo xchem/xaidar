@@ -59,6 +59,22 @@ def sortPaths(pathsLst, filesPath = True):
 
 ### Ways Open a nested list
 
+###  Open All Subfolders
+def openSubfolder( lst, depth):
+    """
+    Gets all the items from a specific tree depth downwards
+    Args:
+    - Depth (int): Represents the non-zero indexed level
+
+    Return:
+    - Subfolder with content for all the deeper layers
+    """
+    for _ in range( depth - 1): # -1 bc it already start at level one, and at the return it opens one extra level
+        lst = lst[-1]
+    return lst
+
+## Open at a specific depth
+
 # Iteratively
 def get_item_depth( lst, depth):
     """
@@ -73,18 +89,6 @@ def get_item_depth( lst, depth):
         lst = lst[-1]
     return lst[:-1]
 
-def openSubfolder( lst, depth):
-    """
-    Gets all the items from a specific tree depth downwards
-    Args:
-    - Depth (int): Represents the non-zero indexed level
-
-    Return:
-    - Subfolder with content for all the deeper layers
-    """
-    for _ in range( depth - 1): # -1 bc it already start at level one, and at the return it opens one extra level
-        lst = lst[-1]
-    return lst
 
 # Recursively
 def openNestedLst(lst, maxDepth , depth = 0  ):
@@ -594,6 +598,8 @@ def getFileTypes( lstFilePaths, regexFilterS = None):
 def findTargetIdxs(targetItem, tree,startDepth = 1, endDepth = 10, regexpression = None  ):
     
     """
+    Given a file or folder name, this function searches through a tree structure to find the Gamma and file location index of the target item.
+
     Args:
     - targetFolder
     - tree: tree object (folder or file - folder is recommended) used to identify where the folder of interest lives
