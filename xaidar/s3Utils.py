@@ -103,19 +103,17 @@ def initialize( store, cred_dict = cred ):
 #### Get Metadata For All Objects in Data Store ########################################################################################################
 
 def lstAllKeys( response, lstOfKeys):
-
-    if lstOfKeys["Content"] == None: lstOfKeys["Content"] =  [] 
-
     contToken = response["NextContinuationToken"] if "NextContinuationToken" in response else None
-    lstOfKeys[0] = f"NxTkn-{ contToken  }"
-    if "Contents" in response:
-        lstOfKeys.extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
 
-    output = {"size": None, "Content": None}
-    output["size"] = len( lstOfKeys )
-    output["Content"] = lstOfKeys
+    if lstOfKeys["Content"] == None: lstOfKeys["Content"] =  [f"NxTkn-{ contToken  }"]
+    else: lstOfKeys["Content"][0] = f"NxTkn-{ contToken  }"
+
+    if "Contents" in response:
+        lstOfKeys["Content"].extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+
+    lstOfKeys["Size"] = len( lstOfKeys["Content"] )
     
-    return output
+    return lstOfKeys
 
 def getAllObjSizes( response, objSizes):
     
@@ -133,7 +131,7 @@ def getAllObjSizes( response, objSizes):
     return objSizes
 
 
-def iterateObjStore(bucket_name, client, save = True, function = None, saveDir = "ObjStoreContent", fragSize = 1, maxLen = None, frag = True, saveObjContent = None):
+def iterateObjStore(bucket_name, client, save = True, function = None, savePath = None, saveDir = "ObjStoreContent", fragSize = 1, maxLen = None, frag = True, saveObjContent = None):
     
 
     """
@@ -156,8 +154,9 @@ def iterateObjStore(bucket_name, client, save = True, function = None, saveDir =
     - save (bool) -> if True, it will output pickle files with lists of object keys. If False, will output a list object.
     - saveDir (str) -> Name of directory created to save files
     - fragSize (float) -> Units of  1000
-    - maxLen (float)-> Max Number of Objects being iterated. Must be higher than the fragSize to have an effect. That is the minimum size. Same units as fragSize
+    - maxLen (float)-> Max Number of Objects being iterated over. If None, it will iterate over all. Must be higher than the fragSize to have an effect. That is the minimum size. Same units as fragSize
     - Frag (bool) -> Tells whether to save the resul in small fragment files (True) or in one big file (False)
+    - saveObjContent -> If not None, allows to restart from a previous saved object. This is useful if the function is interrupted and you want to continue from where it left off.
     Note: For linux users, must alter the f".\\{saveDir}" to /{saveDir}
     
     Return:
@@ -179,11 +178,18 @@ def iterateObjStore(bucket_name, client, save = True, function = None, saveDir =
 
     # Save first list
     if save:
-        Path(f"./{saveDir}").mkdir(exist_ok=True)
-        path = Path( f"./{saveDir}", f"frag{fragCount}.pkl" )
-        if frag: 
-            savePyObj( saveObj, path )
-            saveObj = { "Size": 0, "Content" : None }
+        if savePath:
+            savePath.mkdir(parents=True, exist_ok=True)
+            path = savePath / f"frag{fragCount}.pkl"
+            if frag:
+                savePyObj( saveObj, path )
+                saveObj = { "Size": 0, "Content" : None }
+        else:
+            Path(f"./{saveDir}").mkdir(exist_ok=True)
+            path = Path( f"./{saveDir}", f"frag{fragCount}.pkl" )
+            if frag: 
+                savePyObj( saveObj, path )
+                saveObj = { "Size": 0, "Content" : None }
 
     while kwargs["ContinuationToken"] != None:
         if  maxLen:
@@ -200,14 +206,24 @@ def iterateObjStore(bucket_name, client, save = True, function = None, saveDir =
         # Save the current list and reset it for the next fragment of objects 
         if saveObj["Size"] >= fragmentSize and frag and save:
             fragCount += 1
-            Path(f"./{saveDir}").mkdir(exist_ok=True)
-            path = Path( f"./{saveDir}", f"frag{fragCount}.pkl" )
-            savePyObj( saveObj, path )
+
+            if savePath:
+                path = savePath / f"frag{fragCount}.pkl"
+                savePyObj( saveObj, path )
+            else:
+                Path(f"./{saveDir}").mkdir(exist_ok=True)
+                path = Path( f"./{saveDir}", f"frag{fragCount}.pkl" )
+                savePyObj( saveObj, path )
 
             saveObj = { "Size": 0, "Content" : None }
 
 
-    if saveObj != None and save: savePyObj( saveObj, Path( f"./{saveDir}", f"frag{fragCount+1}.pkl" ) )
+    if saveObj != None and save: 
+        if savePath:
+            path = savePath / f"frag{fragCount+1}.pkl"
+            savePyObj( saveObj, path )
+        else:
+            savePyObj( saveObj, Path( f"./{saveDir}", f"frag{fragCount+1}.pkl" ) )
 
     if save and frag: print(f"Finished saving around { fragCount*fragmentSize } keys.")
     elif save and not frag: print( "Finished saving around {} keys.".format( saveObj["Size"] ))
