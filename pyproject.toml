@@ -21,8 +21,10 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
     "anytree>=2.12.1",
+    "biopython>=1.83",
     "boto3>=1.37.36",
     "cryptography>=44.0.2",
+    "gemmi>=0.7.3",
     "ipykernel>=6.29.5",
     "jupyter>=1.1.1",
     "matplotlib>=3.7.5",
