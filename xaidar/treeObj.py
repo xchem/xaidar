@@ -20,10 +20,10 @@ def sortPaths(pathsLst, filesPath = True):
     """
     # This trims the file name, so that there are only folder paths
     if filesPath:
-        truncatedPaths = list( set( [ "/".join( path.split("/")[ :-1 ] ) for path in pathsLst ] ) ) 
+        pathsLst = list( set( [ "/".join( path.split("/")[ :-1 ] ) for path in pathsLst ] ) ) 
 
     # Split into steps of the path
-    foldersLst = [ ( len( path.split("/")) , path.split("/") ) for path in truncatedPaths ]
+    foldersLst = [ ( len( path.split("/")) , path.split("/") ) for path in pathsLst ]
 
     # Sort by size so that the larger paths come first
     foldersLst.sort( reverse = True, key= lambda x: x[0])
