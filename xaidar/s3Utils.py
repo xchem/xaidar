@@ -233,6 +233,32 @@ def iterateObjStore(bucket_name, client, save = True, function = None, savePath 
 #### Get Metadata For The Overall Bucket ################################################
 
 # Get number of files a bucket or several buckets
+
+def bucketObjCount(paginator, page_size):
+    return page_size * ( len( [ None for _ in paginator ] ) - 1 )
+
+def bucketStorage(pages, *args ):
+    size = 0
+    for page in pages:
+        if "Contents" in list(page.keys()):
+            size += sum( [ response["Size" ]  for response in page["Contents"] ]  )
+    return size
+
+
+def getBucketStatistic(client, bucket_list:list, foo, page_size = 100, maxitems = 1001):
+    statistic = {}
+    for bucket_key in bucket_list:
+        paginator = client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=bucket_key, PaginationConfig = {"PageSize": page_size, "MaxItems":maxitems })
+        statistic[bucket_key] = foo( pages, page_size)
+        # for page in pages:
+        #     for obj in page['Contents']:
+        #         print(obj['Key'], obj['Size'], obj['LastModified'])
+    return statistic
+
+
+
+
 def getBucketSize(client, bucket_list:list, page_size = 100, maxitems = 1000):
     size = {}
     for bucket_key in bucket_list:
