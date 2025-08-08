@@ -102,15 +102,18 @@ def mergeFiles( filesDir, maxFiles = None, filesList = None ):
 
     print( "Finished merging")
 
-def roundBytes( bytesSize:int ):
+def roundBytes( bytesSize:int, sign_figs = 2 ):
     """
     Rounds a size measured in bytes units to the closest upscale 
     """
     units = ['Byte', 'KB', 'MB', 'GB', 'TB']
+    finalUnit = None
     for n, unit in  zip( range( 0, 13, 3), units) :
-        if bytesSize >= 1*10**n: roundSize = f"{ bytesSize // (1*10**n) }{unit}"
+        if bytesSize == 0:  roundSize, unit = bytesSize, 'Byte'
+        elif bytesSize >= 1*10**n: roundSize, finalUnit =  round( bytesSize / (1*10**n) , sign_figs), unit
         else: break
-    return roundSize
+        
+    return roundSize, finalUnit
 
 def getFragFiles( paths ):
     """
