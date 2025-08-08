@@ -256,7 +256,11 @@ def getBucketStatistic(client, bucket_list:list, foo, page_size = 100, maxitems 
         #         print(obj['Key'], obj['Size'], obj['LastModified'])
     return statistic
 
+def getBucketSize_v3( client, bucket_list:list ):
+    return getBucketStatistic( client, bucket_list, bucketStorage, page_size = 100, maxitems = 1001)
 
+def getBucketCount_v3( client, bucket_list:list ):
+    return getBucketStatistic( client, bucket_list, bucketObjCount, page_size = 100, maxitems = 1001)
 
 
 def getBucketSize(client, bucket_list:list, page_size = 100, maxitems = 1000):
