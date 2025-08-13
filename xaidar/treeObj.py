@@ -642,8 +642,39 @@ def findTargetIdxs(targetItem, tree,startDepth = 1, endDepth = 10, regexpression
         tree = tree[-1]
     return supraFolderIdx, folderIdx, targetLevel 
 
-def findAllTargetIdxs(targetItem, tree,startDepth = 1, endDepth = 10, regexpression = None  ):
+def findAllTargetIdxs(targetItem, tree, startDepth = 1, endDepth = 10, regexpression = None  ):
+    """
+    Finds all occurrences of a target item (folder/file) within a file system tree.
 
+    This function searches through a tree-like data structure representing a file system.
+    It can find items by their exact name or by a regular expression. The search can
+    be limited to a specific range of depths within the tree.
+
+    Args:
+        targetItem (str): The exact name of the folder or file to search for. This is
+            ignored if `regexpression` is provided.
+        tree (list): A list representing the file system tree. Each element of the list
+            corresponds to a level of the tree, and each sub-list contains the items
+            (folders or files) at that level.
+        startDepth (int, optional): The starting depth level for the search (inclusive).
+            The root is typically considered depth 0 or 1. Defaults to 1.
+        endDepth (int, optional): The ending depth level for the search (exclusive).
+            The search will stop at the level just before this value. Defaults to 10.
+        regexpression (str, optional): A regular expression string to match against
+            item names. If provided, `targetItem` is ignored. Defaults to None.
+
+    Returns:
+        list of tuples: A list of tuples, where each tuple represents a found item.
+            Each tuple contains three integers:
+            - `supraFolderIdx`: The index of the parent folder within its level.
+            - `folderIdx`: The index of the target item within its parent folder.
+            - `targetLevel`: The depth level of the found item in the tree.
+
+    Example:
+        Given a tree like `[ ['root'],[ ['folderA', 'folderB'],[ ['fileC'] , ['fileD', 'fileE'], [[ ]] ] ] ] `
+        and `targetItem='fileC'`, the function would return `[(0, 0, 2)]` assuming
+        'fileC' is a subfolder of 'folderA'.
+    """
     allTargetIdxs = []
     targetLevel, supraFolderIdx, folderIdx = None, None, None
     for depth in range( 1, endDepth): # startDepth,
@@ -692,8 +723,36 @@ def cumulativeCount( foldersCount):
 
 def getGammaID(supraFolderIdx, folderIdx, targetLevel, folderSumCount ):
     """
-    GammaID would be similar to folder ID, but each element represents the gamma 
-    for the correspondent level to select the right folder.
+    Constructs a "Gamma ID" for a target item (folder or file) in a file system tree.
+
+    The Gamma ID is a list of indices that, when used with a `folderSumCount` data
+    structure, can uniquely identify a path from the root to a specific item. Each
+    element in the Gamma ID represents the index of a subfolder within its
+    immediate parent's list of subfolders.
+
+    Args:
+        supraFolderIdx (int): The index of the parent folder within its level.
+        folderIdx (int): The index of the target item (folder or file) within its
+            immediate parent's list of subfolders/files.
+        targetLevel (int): The depth level of the target item in the tree (starting from 1).
+        folderSumCount (list of lists): A pre-calculated data structure used to
+            determine the Gamma ID. It likely contains cumulative counts of folders
+            at different levels to help reconstruct the path.
+
+    Returns:
+        list of int: The Gamma ID, a list of integers representing the path to the
+            target item. The first element is the index at the root level, the
+            second is the index at the next level, and so on, up to the target item.
+
+    Example:
+        tree  `[ ['folder11', 'folder12'], [
+                     ['folder21', "file21"] , ['folder22', 'folder23'], [ 
+                            ['file31'], ['file32', 'file33'], ['file34', 'file35', 'file36']
+                                ] ] ] ] `
+        file36 path    folder12/folder23/file36
+        file36 GammaID [ 0, 1, 2 ]
+        file36 fileID  [ 1, 1, 2 ]
+
     """
     gammaFolderID = [ supraFolderIdx, folderIdx] # It represents the gamma of which folder to open in each level with pinchLevel with exception of the last element which identifies the folder / file
 
@@ -731,7 +790,7 @@ def traceBackPath(targetItem, tree, foldersCount, treeMaxDepth, startDepth = 1):
     folderPath = convertIDtoPath( tree, foldersCount, folderID)
     return folderPath, folderID
 
-def getAllSubFolders(tree, foldersCount, lst_folderIDs=None, folderPath=None, lst_subfolderIDs=None):
+def getAllSubFolders(tree, foldersCount, lst_ParentFolderIDs = list[ list ],  lst_AllFolderIDs = []):
     """
     Recursively gets all subfolders within a given folder.
 
@@ -745,16 +804,11 @@ def getAllSubFolders(tree, foldersCount, lst_folderIDs=None, folderPath=None, ls
             through recursive calls.
         foldersCount (list of lists): A nested list where `foldersCount[depth][parent_id]`
             indicates the number of subfolders for a given parent folder at a specific depth.
-        lst_folderIDs (list, optional): A list of parent folder IDs to search for subfolders.
+        lst_ParentFolderIDs (list, mandatory): A list of parent folder IDs to search for subfolders.
             Each ID is represented as a list of integers (e.g., `[0, 1]` for the second folder
             in the first subfolder of the root). Defaults to None, which implies the initial
             call should be handled appropriately by the calling function.
-        folderPath (str, optional): A string representing the path to the folder. This
-            parameter is currently not used in the function's logic. Defaults to None.
-        lst_subfolderIDs (list, optional): A list to store the subfolder IDs found at each
-            level. It's a nested list where `lst_subfolderIDs[level]` contains a list of
-            all subfolder IDs at that level. Defaults to None, and is initialized within
-            the function's logic if not provided.
+        lst_subfolderIDs (list, don't use): Internal argument of recursive function.
 
     Returns:
         list: A nested list (`lst_subfolderIDs`) containing the IDs of all subfolders,
@@ -767,11 +821,13 @@ def getAllSubFolders(tree, foldersCount, lst_folderIDs=None, folderPath=None, ls
         - The first sublist `[[0], [1]]` contains the IDs of the first level of subfolders.
         - The second sublist `[[0, 0], [1, 0]]` contains the IDs of the second level.
     """
+    # print( f"Parent folder IDs: {lst_ParentFolderIDs}" )
+    # print( f"Output list: {lst_AllFolderIDs}" )
     lst_subfolders_in_level = []
     new_parentFolderIDs = []
 
     # Get a list of subfolderIDs for each folder ID
-    for folderID in lst_folderIDs:
+    for folderID in lst_ParentFolderIDs:
         # folderID = [] # placeholder
 
         subFolderLevel = len(folderID) + 1
@@ -782,41 +838,17 @@ def getAllSubFolders(tree, foldersCount, lst_folderIDs=None, folderPath=None, ls
             lst_subfolders_in_level.extend([folderID + [id] for id in range(numberChildrenFolderS)])
 
     # print(f"Length of lst subfolders in level: {len(lst_subfolders_in_level)}")
-
+    # print(f"Subfolders in level: {lst_subfolders_in_level}")
+    # print("-------")
     # If no subfolder has been identified
     if len(lst_subfolders_in_level) == 0:
-        # print(lst_subfolderIDs)
-        return lst_subfolderIDs
+        lst_AllFolderIDs.append( lst_ParentFolderIDs )
+        return lst_AllFolderIDs
     else:
+        
+        lst_AllFolderIDs.append( lst_ParentFolderIDs )
         new_parentFolderIDs = lst_subfolders_in_level
-        lst_subfolderIDs.append(lst_subfolders_in_level)
-        # print(f"Lenght of output list: {len(lst_subfolderIDs)}")
-        return getAllSubFolders(tree, foldersCount, lst_folderIDs=new_parentFolderIDs, lst_subfolderIDs=lst_subfolderIDs)
-
-def findFolderFiles(targetItem, tree, foldersCount, treeMaxDepth, regex = None):
-    """
-    This function the paths for all the files that live inside any folder that exists in the tree.
-    Args:
-    - targetItem: The folder or file to search for
-    - tree: The tree object (folder or file - file is recommended) used to identify where the folder of interest lives
-    - foldersCount: The count of folders at each level
-    - treeMaxDepth: The maximum depth of the tree to search for the target item
-    """
-    resultPaths = []
-    allTargetIdxs = findAllTargetIdxs(targetItem, tree, startDepth = 1, endDepth= treeMaxDepth+2 , regexpression = regex )
-
-    if allTargetIdxs == []: 
-        return None
-    else:
-        for targetIdx in allTargetIdxs:
-            supraFolderIdx, folderIdx, targetLevel = targetIdx
-            folderSumCount = cumulativeCount( foldersCount )
-            gammaFolderID = getGammaID(supraFolderIdx, folderIdx, targetLevel, folderSumCount )
-            folderID = convertGammaIDtoFolderID( gammaFolderID, foldersCount )
-            folderPath = convertIDtoPath( tree, foldersCount, folderID)
-            fileIDs, filePaths = getFiles(tree, foldersCount, folderID = folderID) # Get files in the folder
-            resultPaths.append( ( filePaths, folderPath, fileIDs, folderID ) )
-        return resultPaths
+        return getAllSubFolders(tree, foldersCount, lst_ParentFolderIDs = new_parentFolderIDs, lst_AllFolderIDs = lst_AllFolderIDs)
 
 
 def getFiles(tree,  foldersCount, folderID = None, folderPath = None):
@@ -852,7 +884,46 @@ def getFiles(tree,  foldersCount, folderID = None, folderPath = None):
     else:
         return fileIDS, [ convertIDtoPath(tree, foldersCount, fileID ) for fileID in fileIDS]
 
+def findFolderFiles(targetItem, tree, foldersCount, treeMaxDepth, regex = None):
+    """
+    This function the paths for all the files that live inside any folder that exists in the tree.
+    Args:
+    - targetItem: The folder or file to search for
+    - tree: The tree object (folder or file - file is recommended) used to identify where the folder of interest lives
+    - foldersCount: The count of folders at each level
+    - treeMaxDepth: The maximum depth of the tree to search for the target item
+    """
+    resultPaths = []
+    allTargetIdxs = findAllTargetIdxs(targetItem, tree, startDepth = 1, endDepth= treeMaxDepth+2 , regexpression = regex )
 
+    if allTargetIdxs == []: 
+        return None
+    else:
+        for targetIdx in allTargetIdxs:
+            supraFolderIdx, folderIdx, targetLevel = targetIdx
+            folderSumCount = cumulativeCount( foldersCount )
+            gammaFolderID = getGammaID(supraFolderIdx, folderIdx, targetLevel, folderSumCount )
+            folderID = convertGammaIDtoFolderID( gammaFolderID, foldersCount )
+            folderPath = convertIDtoPath( tree, foldersCount, folderID)
+            fileIDs, filePaths = getFiles(tree, foldersCount, folderID = folderID) # Get files in the folder
+            resultPaths.append( ( filePaths, folderPath, fileIDs, folderID ) )
+        return resultPaths
+
+
+def findAllFolderFiles(tree, foldersCount, folderID):
+    """
+    Gets a list of object keys for all the objects that live within a specific folder.
+
+    Args:
+        folderID (list) : A list of indexes representing a folderID. I.e. [0,1,2] for 
+        /root/folder2/subfolder3_in_folder2.
+        tree (treeObj) : A list of nested lists representing the file 
+    """
+    allFoldersIDs = getAllSubFolders( tree, foldersCount, lst_ParentFolderIDs =  [ folderID ], lst_AllFolderIDs = [] )
+    flatFoldersIDs =  [ folderID for lst_folderIDs in allFoldersIDs for folderID in lst_folderIDs]
+    allPaths = [  getFiles(tree, foldersCount,  folderID=folderID )[1] for folderID in flatFoldersIDs]
+    flatPaths = [ path for listPaths in [ listPaths for listPaths in allPaths if len(listPaths) != 0] for path in listPaths ]
+    return flatPaths
 
 def canonicalExtract( projName, subProjName, treeObj):
     
