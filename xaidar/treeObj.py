@@ -731,7 +731,67 @@ def traceBackPath(targetItem, tree, foldersCount, treeMaxDepth, startDepth = 1):
     folderPath = convertIDtoPath( tree, foldersCount, folderID)
     return folderPath, folderID
 
+def getAllSubFolders(tree, foldersCount, lst_folderIDs=None, folderPath=None, lst_subfolderIDs=None):
+    """
+    Recursively gets all subfolders within a given folder.
 
+    This function traverses a folder structure, starting from a given list of parent folder IDs, and
+    collects all subfolders at each level of the hierarchy. It continues to call itself
+    recursively until no more subfolders are found.
+
+    Args:
+        tree (object): An object representing the overall folder structure. The exact
+            structure of this object is not specified by the function, but it's passed
+            through recursive calls.
+        foldersCount (list of lists): A nested list where `foldersCount[depth][parent_id]`
+            indicates the number of subfolders for a given parent folder at a specific depth.
+        lst_folderIDs (list, optional): A list of parent folder IDs to search for subfolders.
+            Each ID is represented as a list of integers (e.g., `[0, 1]` for the second folder
+            in the first subfolder of the root). Defaults to None, which implies the initial
+            call should be handled appropriately by the calling function.
+        folderPath (str, optional): A string representing the path to the folder. This
+            parameter is currently not used in the function's logic. Defaults to None.
+        lst_subfolderIDs (list, optional): A list to store the subfolder IDs found at each
+            level. It's a nested list where `lst_subfolderIDs[level]` contains a list of
+            all subfolder IDs at that level. Defaults to None, and is initialized within
+            the function's logic if not provided.
+
+    Returns:
+        list: A nested list (`lst_subfolderIDs`) containing the IDs of all subfolders,
+              grouped by their depth relative to the initial set of folders.
+
+    Example:
+        If you have a root folder with two subfolders, each having one subfolder of its own,
+        the output might look like this:
+        `[ [[0], [1]], [[0, 0], [1, 0]] ]`
+        - The first sublist `[[0], [1]]` contains the IDs of the first level of subfolders.
+        - The second sublist `[[0, 0], [1, 0]]` contains the IDs of the second level.
+    """
+    lst_subfolders_in_level = []
+    new_parentFolderIDs = []
+
+    # Get a list of subfolderIDs for each folder ID
+    for folderID in lst_folderIDs:
+        # folderID = [] # placeholder
+
+        subFolderLevel = len(folderID) + 1
+        folderGamma = getGamma(foldersCount, folderID)
+        numberChildrenFolderS = foldersCount[subFolderLevel - 1][folderGamma]
+        # print(f"Number of Children Folders: {numberChildrenFolderS}")
+        if numberChildrenFolderS != 0:
+            lst_subfolders_in_level.extend([folderID + [id] for id in range(numberChildrenFolderS)])
+
+    # print(f"Length of lst subfolders in level: {len(lst_subfolders_in_level)}")
+
+    # If no subfolder has been identified
+    if len(lst_subfolders_in_level) == 0:
+        # print(lst_subfolderIDs)
+        return lst_subfolderIDs
+    else:
+        new_parentFolderIDs = lst_subfolders_in_level
+        lst_subfolderIDs.append(lst_subfolders_in_level)
+        # print(f"Lenght of output list: {len(lst_subfolderIDs)}")
+        return getAllSubFolders(tree, foldersCount, lst_folderIDs=new_parentFolderIDs, lst_subfolderIDs=lst_subfolderIDs)
 
 def findFolderFiles(targetItem, tree, foldersCount, treeMaxDepth, regex = None):
     """
