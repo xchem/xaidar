@@ -165,16 +165,18 @@ def iterateObjStore(bucket_name, client, save = True, function = None, savePath 
 
 
     """
-    
+    # Initalize the save object
     saveObj = { "Size": 0, "Content" : saveObjContent }
     kwargs = { "Bucket" : bucket_name }
     if fragSize < 1: kwargs["MaxKeys"] = int( 1e3*fragSize )
     fragmentSize = int( 1e3*fragSize )
     fragCount = 1
 
+    # Extract the next set of objects information #########
     response = client.list_objects_v2( **kwargs )
     kwargs["ContinuationToken"]  = response["NextContinuationToken"] if "NextContinuationToken" in response else None
     saveObj = function( response, saveObj )
+    ########################################################
 
     # Save first list
     if save:
@@ -193,15 +195,15 @@ def iterateObjStore(bucket_name, client, save = True, function = None, savePath 
 
     while kwargs["ContinuationToken"] != None:
         if  maxLen:
-            if fragCount*fragmentSize >= maxLen*1000 and frag:
+            if fragCount*fragmentSize >= maxLen*1000 : #and frag
                 break
             elif saveObj["Size"] >= maxLen*1000:
                 break
-        
+        # Extract the next set of objects information #########
         response = client.list_objects_v2( **kwargs )   
         kwargs["ContinuationToken"] = response["NextContinuationToken"] if "NextContinuationToken" in response else None
-
         saveObj = function(  response, saveObj )
+        ########################################################
 
         # Save the current list and reset it for the next fragment of objects 
         if saveObj["Size"] >= fragmentSize and frag and save:
@@ -246,6 +248,18 @@ def bucketStorage(pages, *args ):
 
 
 def getBucketStatistic(client, bucket_list:list, foo, page_size = 100, maxitems = 1001):
+    """
+    Args:
+    - client: boto3.client object
+    - bucket_list (list): list of bucket names to get statistics from
+    - foo (function): function that takes a paginator and returns a statistic (e.g. bucketObjCount or bucketStorage)
+    - page_size (int): number of items per page for pagination
+    - maxitems (int or None): maximum number of items to retrieve from each bucket
+        - If None (default), retrieves all items.
+        - If an integer, limits the number of items to that value.
+    Returns:
+    - A dictionary with bucket names as keys and the statistic as values
+    """
     statistic = {}
     for bucket_key in bucket_list:
         paginator = client.get_paginator('list_objects_v2')
@@ -409,6 +423,33 @@ def uploadManyFiles( bucket, client, objectNames:list, filesPaths: list, ):
 
     runCode = [ uploadFile( bucket, client, name, path, ) for name, path in zip(objectNames, filesPaths )]
     print("Finished upload")
+
+#### Delete Objects in a Bucket ########################################################################
+
+def massDeletion(client, bucket, lst_paths, window_size=1000, fileName = None):
+    """
+    Deletes a large number of objects in an S3 bucket in batches.
+    Args:
+    - client: boto3.client object for S3
+    - bucket: Name of the S3 bucket from which to delete objects
+    - lst_paths: List of object keys (paths) to delete
+    - window_size: Number of objects to delete in each batch (default is 1000)
+    - fileName: Optional name of the file being processed, for logging purposes
+    Returns:
+    - None
+    """
+    numb_paths = len(lst_paths)
+    numb_windows = (numb_paths + window_size - 1) // window_size
+    for idx in range(0, numb_windows):
+        paths_window = lst_paths[idx * window_size : (idx + 1) * window_size]
+        paths_input = [  { "Key": path } for path in paths_window ]
+        try:
+            client.delete_objects(Bucket=bucket, Delete={"Objects": paths_input})
+        except Exception as e:
+            print(f"Failed to delete objects in window {idx}: {e}")
+            continue
+    if fileName: print(f"Finished mass deletion of objects for file: {fileName} with {numb_paths} paths")
+    else: print(f"Finished mass deletion of objects for {numb_paths} paths")
 
 
 ########### Obsolete Code ###################################
