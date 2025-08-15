@@ -110,6 +110,7 @@ def lstAllKeys( response, lstOfKeys):
 
     if "Contents" in response:
         lstOfKeys["Content"].extend( [ obj["Key"] for obj in response["Contents"] if "Contents" in response ] )
+    else: lstOfKeys["Content"].extend( [f"MISSING!!!-{contToken}"] )
 
     lstOfKeys["Size"] = len( lstOfKeys["Content"] )
     
@@ -152,6 +153,7 @@ def iterateObjStore(bucket_name, client, save = True, function = None, savePath 
     - client -> boto3.client object
     - Function: function must output a dictionary with: "size" key = int of number of elements | "content" key = python object that contains information wanted. Args: response & saveObj
     - save (bool) -> if True, it will output pickle files with lists of object keys. If False, will output a list object.
+    - savePath (pathlib.Path) -> Path to directory where the files will be saved. If None, it will save in the current working directory.
     - saveDir (str) -> Name of directory created to save files
     - fragSize (float) -> Units of  1000
     - maxLen (float)-> Max Number of Objects being iterated over. If None, it will iterate over all. Must be higher than the fragSize to have an effect. That is the minimum size. Same units as fragSize

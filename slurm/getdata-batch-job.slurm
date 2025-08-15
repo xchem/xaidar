@@ -3,7 +3,7 @@
 #SBATCH -n 1                                  # --ntasks (default = 1)  (number of tasks / processes)
 #SBATCH -p cs05r                      # --partition ( Partition name  / queue)
 #SBATCH --time=24:00:00            # Time limit (days-hh:mm:ss) # 08:00:00  
-#SBATCH --job-name DeposData                  # Job name
+#SBATCH --job-name DepoData                  # Job name
 #SBATCH --output ../logs/getDepoData-batch-job.out # ./logs/batch-job_%j.out             # Output file
 #SBATCH --error ../logs/getDepoData-batch-job.err # ./logs/batch-job_%j.err    
 #SBATCH --mem=16G                   # Memory per node

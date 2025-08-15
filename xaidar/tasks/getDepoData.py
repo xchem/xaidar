@@ -86,6 +86,10 @@ for session, lst_datasets in filesofInt.items():
         datasetPath = dataset # i.e. "data/2017/lb18145-3/processing/analysis/initial_model/NUDT7A-x0140"
         datasetName = datasetPath.split("/")[-1] # I.e. "NUDT7A-x0140"
         datasetContent = openFolderwPath( tree["fileTree"], tree["foldersCount"],  datasetPath )
+        
+        if not datasetContent:
+            print(f"Warning: No content found for dataset {datasetName} in session {session}.")
+            pass
 
         for item in datasetContent:
             if item == "dimple.mtz": datasetFilePaths["dimple.mtz"].append(datasetPath +"/dimple.mtz" )
