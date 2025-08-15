@@ -790,6 +790,39 @@ def traceBackPath(targetItem, tree, foldersCount, treeMaxDepth, startDepth = 1):
     folderPath = convertIDtoPath( tree, foldersCount, folderID)
     return folderPath, folderID
 
+def traceBackAllPaths(targetItem, tree, foldersCount, treeMaxDepth, startDepth = 1):
+    """
+    Finds all paths to a target item in a file system tree and returns their paths and IDs
+    Args:
+        targetItem (str): The name of the target item (folder or file) to search for.
+        tree (list): The file system tree structure, where each level is a list of items (folders/files).
+        foldersCount (list of lists): A nested list where `foldersCount[depth][parent_id]`
+            indicates the number of subfolders for a given parent folder at a specific depth.
+        treeMaxDepth (int): The maximum depth of the tree to consider for the search.
+        startDepth (int, optional): The starting depth level for the search (inclusive).
+            Defaults to 1.  
+    Returns:
+        tuple: A tuple containing:
+            - `lst_paths` (list): A list of paths to the target item(s)
+            - `lst_foldersID` (list): A list of folder IDs corresponding to the paths.
+    """
+    try:
+        lst_idxs = findAllTargetIdxs(targetItem, tree, startDepth = startDepth, endDepth= treeMaxDepth+2  )
+    except:
+        return None
+    lst_paths = []
+    lst_foldersID = []
+    for idx in lst_idxs:
+        supraFolderIdx, folderIdx, targetLevel = idx[0], idx[1], idx[2]
+        folderSumCount = cumulativeCount( foldersCount )
+        gammaFolderID = getGammaID(supraFolderIdx, folderIdx, targetLevel, folderSumCount )
+        folderID = convertGammaIDtoFolderID( gammaFolderID, foldersCount )
+        folderPath = convertIDtoPath( tree, foldersCount, folderID)
+        lst_paths.append(folderPath)
+        lst_foldersID.append(folderID)
+    return lst_paths, lst_foldersID 
+
+
 def getAllSubFolders(tree, foldersCount, lst_ParentFolderIDs = list[ list ],  lst_AllFolderIDs = []):
     """
     Recursively gets all subfolders within a given folder.
