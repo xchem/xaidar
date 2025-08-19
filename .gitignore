@@ -32,3 +32,6 @@ playground*
 .gitsecret/paths
 !*.secret
 credentials.enc
+
+# Slurm Log Files
+slurm/logs/*
