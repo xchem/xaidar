@@ -89,7 +89,7 @@ for session, lst_datasets in filesofInt.items():
         
         if not datasetContent:
             print(f"Warning: No content found for dataset {datasetName} in session {session}.")
-            pass
+            continue
 
         for item in datasetContent:
             if item == "dimple.mtz": datasetFilePaths["dimple.mtz"].append(datasetPath +"/dimple.mtz" )
