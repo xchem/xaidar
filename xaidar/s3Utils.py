@@ -100,6 +100,26 @@ def initialize( store, cred_dict = cred ):
     )
     return client
 
+def load_client(credKey, rootPath = None ):
+    """
+    Task: Load the client for the XChem data store.
+    Args:
+    - credKey (str): Key used to decrypt the credentials file. This should be saved by the user in a safe key storage system.
+    - rootPath (pathlib.Path or None): Path to the directory where the credentials file is stored. 
+        If rootPath is None, it will look for the credentials file in the current working directory
+        If rootPath is provided, it will look for the credentials file in the rootPath directory
+        and the file name should be "credentials.enc"
+    Return:
+    - boto3.client() object for the XChem data store.
+    Note: The credentials file should be encrypted with the encryptCredentials function.
+    """
+    if rootPath: credPath = rootPath / "credentials.enc"
+    else: credPath =  Path( "credentials.enc")
+    credPath = credPath.resolve()
+    credDict = decryptCredentials( credKey, credPath )
+    client = initialize( "XChem", cred_dict=credDict)
+    return client
+
 #### Get Metadata For All Objects in Data Store ########################################################################################################
 
 def lstAllKeys( response, lstOfKeys):
