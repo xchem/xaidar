@@ -611,6 +611,7 @@ def findTargetIdxs(targetItem, tree,startDepth = 1, endDepth = 10, regexpression
     - supraFolderIdx: Zero-Index of suprafolder which target folder / file lives in (aka gamma)
     - folderIdx: zero-Index of where the folder / file lives
     - targetLevel: Level (in non-zero index) that identified folder / live  lives in
+        - I.e. [[data], [ [2017], [...] ] ] -> data level = 1, 2017 level = 2 
     """
 
     targetLevel, supraFolderIdx, folderIdx = None, None, None
@@ -957,6 +958,10 @@ def findAllFolderFiles(tree, foldersCount, folderID):
     allPaths = [  getFiles(tree, foldersCount,  folderID=folderID )[1] for folderID in flatFoldersIDs]
     flatPaths = [ path for listPaths in [ listPaths for listPaths in allPaths if len(listPaths) != 0] for path in listPaths ]
     return flatPaths
+
+def getSubTree(fileTree, foldersCount, folderID ):
+    subTree = createTree( findAllFolderFiles( fileTree, foldersCount, folderID ) )
+    return subTree
 
 def canonicalExtract( projName, subProjName, treeObj):
     
