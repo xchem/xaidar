@@ -1036,6 +1036,75 @@ def canonicalExtract( projName, subProjName, treeObj):
     
     return obtainedPaths
 
+
+def convert_dicTree_to_lisTree(dicTree):
+    """
+    Converts a dictionary of nested dictionaries into a list of nested lists.
+    """
+
+    def openDict( dicTree, lstTree = None, treeLen : list | object = [1], currentDepth = 0,  foldersCount = [] ):
+        """
+        Args:
+            - dicTree: Nested Dictionary of dictionaries
+            - lstTree: external mutable list object that will be converted into the 
+            wanted nested list of lists.
+            - treeLen: external mutable list object that will keep track of the depth
+            being riched as the function is processing. It is used to ensure that a new
+            layer of nested list is added only when a new depth is reached for the first time.
+            - currentDepth: internal variable to keep track of the depth currently present 
+            during the operations. It is used to compare with the treeLen, to see if the 
+            maximum depth has yet been reached.
+        Output:
+            - None: the external mutable objects are altered but the function does not
+            return any variable by itself.
+        """
+        currentDepth += 1
+        if currentDepth == treeLen[0]: # First time that it dives to this depth
+            lstTree[-1].append( [] ) #  [ ["supraroot"]  ] ->   [ ["supraroot"] , [] ]
+            foldersCount.append( [] )
+            # Update Mutable list object by keeping the highest reached depth
+            treeLen[0] = treeLen[0] + 1
+
+        foldersCount[ currentDepth - 1].append( len( [ key for key in dicTree.keys() if key != "Files"]) )
+
+        for value in  dicTree.values(): # root 
+            if isinstance( value, dict ): # Looking at directory
+                subDict = value
+                folderContent =  [ key  if isinstance( value, dict) else value for key, value in subDict.items() ]
+                
+                # Flatten the file Names
+                itemsNames = list( subDict.keys())
+                if "Files" in itemsNames:
+                    indexes = [ idx for idx, name in enumerate(itemsNames) if name == "Files"]
+                    for index in indexes:
+                        folderContent.extend( folderContent.pop(index))
+
+                lstTree[-1].insert( -1, folderContent) # Adds all the folders and files # list( value.keys() ) # subDir11 subDir12 File13
+                openDict(  value, lstTree = lstTree[-1], treeLen = treeLen, currentDepth = currentDepth, foldersCount = foldersCount )
+
+            else: # Looking at files 
+                pass
+
+        return None
+
+    lstTree = [ list(dicTree.keys() ), [] ]
+    length = [1]
+    foldersCount = []
+
+    openDict(dicTree, lstTree = lstTree, treeLen=length, foldersCount= foldersCount  )
+
+    return lstTree, foldersCount, length
+
+
+
+
+
+
+
 if __name__ == "__main__":
+
+
+    
+
 
     pass
