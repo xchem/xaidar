@@ -1,5 +1,6 @@
 from pathlib import Path
 from xaidar.treeUtils import sortPaths
+from anytree import Node, RenderTree
 
 class sysDicTree():
     def __init__(self, folderTree = None, fileTree = None, lst_Paths = None):
@@ -57,3 +58,81 @@ class sysDicTree():
         return cls( folderTree = folderTreeDict, fileTree = fileTreeDict)
     
 
+    def viewTree(self, itemID = None, itemPath = None, startDepth = None, endDepth = None, root_name = None):
+
+        if root_name:
+            root_node = Node(root_name)
+            dicTree = self.fileTree
+        else:
+            root_name = list(self.fileTree.keys())[0]
+            root_node =  Node(root_name)
+            dicTree = self.fileTree[root_name]
+
+        if itemID:
+            dir, node = viewIndexDict( dicTree, parent = root_node, indexLst = itemID )
+        elif itemPath:
+            dir, node = viewPathDict(dicTree, parent = root_node, path = itemPath )
+        else:
+            dir, node = dicTree, root_node
+        
+        viewTreeDict( dir, parent = node, targetDepth = endDepth, viewFiles = True  )
+        for pre, fill, node in RenderTree(root_node):
+            print("%s%s" % (pre, node.name))
+        return 
+    
+
+def viewPathDict( d, parent = None, path = None):
+    """
+    Args:
+    - path: 
+        - If list(strings):
+        - If empty list: passes input dictionary and None as output
+    """
+    if path == []:
+        return [d,  parent]
+    else:
+        result = []
+        for folderidx, (key, value) in enumerate( d.items() ):
+            if key == path[0]:
+                parentNode = Node( f"[{folderidx}] {key}", parent = parent)
+                result.extend( viewPathDict( value, parent = parentNode, path = path[1:] ) )
+    return result 
+
+
+def viewIndexDict( d, parent = None, indexLst = None):
+    """
+    Goes through the 
+    """
+    if indexLst == []:
+        return [d, parent]
+    else:
+        result = []
+        for folderIdx, (key, value) in enumerate( d.items() ):
+            if folderIdx == indexLst[0]:
+                node = Node( f"[{folderIdx}] {key}", parent = parent)
+                result.extend( viewIndexDict( value, node, indexLst = indexLst[1:]))
+    return result
+
+
+
+
+def viewTreeDict(d, parent=None, targetDepth = None, currentDepth = 0, viewFiles = True):
+    if currentDepth == targetDepth:
+        return
+    
+    currentDepth += 1
+
+    for folderidx, (key, value ) in enumerate( d.items() ):
+        if key == "Files":
+            if viewFiles:
+                # Attach files as leaf nodes
+                for fileidx, file in enumerate(value):
+                    Node(f"[{folderidx + fileidx }-F] {file}", parent=parent)
+        else:
+            node = Node( f"[{folderidx}] {key}", parent=parent)
+            if isinstance(value, dict) and targetDepth == None:
+                viewTreeDict(value, parent= node, currentDepth = currentDepth, 
+                             targetDepth = targetDepth, viewFiles = viewFiles)
+            elif isinstance(value, dict) and currentDepth < targetDepth :
+                viewTreeDict(value, parent= node, currentDepth = currentDepth, 
+                             targetDepth = targetDepth, viewFiles = viewFiles)
