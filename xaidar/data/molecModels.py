@@ -61,7 +61,39 @@ def clear_empty(pdb):
         for chain_name in delete_list: del pdb[ model_id ][chain_name]
     for model_idx, model in enumerate(pdb):
         if len(model) == 0: del pdb[model_idx]
-    return pdb
+    return pdb if len(pdb) > 0 else None
+
+def flatten_pdb(pdb: gemmi.Structure, level : str)-> (list[ gemmi.Model]| 
+                list[gemmi.Chain] | list[gemmi.Residue] | list[gemmi.Atom]) :
+	
+    """
+	This function outputs a list of certain gemmi objects down the gemmi.Structure
+	hierarchy for all the objects of that type that live within the gemmi.Structure.
+	Args
+	- pdb
+	- level (str ): options - [ "model", "chain", "residue", "atom"]
+    """
+    
+    if level == "model":
+        return [ model for model in pdb ]
+
+    elif level == "chain":
+        return [ chain for model in pdb for chain in model ]
+
+    elif level == "residue":
+        lst_resdues = [ residue for model in pdb for chain in model 
+                                            for residue in chain ]
+        return lst_resdues
+
+    elif level == "atom":
+        lst_atoms = [ atom for model in pdb for chain in model 
+                            for residue in chain for atom in residue ]
+        return lst_atoms
+
+    else:
+        raise ValueError(("Invalid level specified. "
+            "Choose from 'model', 'chain', 'residue', or 'atom'."))
+
 ### Extract information functions
 
 def get_pdb_stats(structure: gemmi.Structure):
@@ -82,29 +114,64 @@ def get_pdb_stats(structure: gemmi.Structure):
             print( "\tContains A.A." )
     return None
 
-def get_res_coords( res):
-    array = np.array( [[atom.pos.x, atom.pos.y, atom.pos.z] for atom in res] )
-    return array
-
-def get_res_atomMass( res):
-    masses = np.array( [ [atom.element.weight] for atom in res] )
-    return masses
-
-def get_res_CoM( res):
-    coords = get_res_coords( res )
-    mass = get_res_atomMass( res )
-    cm = np.sum( coords * mass, axis=0) / np.sum(mass)
-    return cm
+# General level functions
 
 def get_CoM( coords_array: np.ndarray, mass_array: np.ndarray):
     cm = np.sum(  mass_array * coords_array, axis = 0 ) / np.sum(mass_array)
     return cm
 
+# Atom level functions
+
+def get_atom_coord( lst_atoms: list[ gemmi.Atom ] ) -> np.ndarray:
+    """
+    Extract the coordinates of atoms from a list of gemmi.Atom objects.
+    Args:
+    - flat_pdb (list of gemmi.Atom): List of gemmi.Atom objects.
+    Returns:
+    - list of tuples: Each tuple contains the (x, y, z) coordinates of an atom.
+    """
+    coords = np.array([ [atom.pos.x, atom.pos.y, atom.pos.z] for atom in lst_atoms ])
+    return coords
+
+def get_atom_weights( lst_atoms: list[ gemmi.Atom ] )-> np.ndarray:
+    """
+    Extract the weights of atoms from a list of gemmi.Atom objects.
+    Args:
+    - flat_pdb (list of gemmi.Atom): List of gemmi.Atom objects.
+    Returns:
+    - list of floats: Each float represents the weight of an atom.
+    """
+    weights = np.array([ [atom.element.weight] for atom in lst_atoms ])
+    return weights
+
+def get_atom_elements( lst_atoms: list[ gemmi.Atom ] ):
+    """
+    Extract the elements of atoms from a list of gemmi.Atom objects.
+    Args:
+    - flat_pdb (list of gemmi.Atom): List of gemmi.Atom objects.
+    Returns:
+    - list of str: Each string represents the element of an atom.
+    """
+    elements = [ [atom.element.name] for atom in lst_atoms ]
+    return elements
+
+# Residue level functions
+def get_res_mw( lst_res: list[gemmi.Residue] ) -> np.ndarray:
+    lst_mass = [ sum( get_atom_weights( res ) ) for res in lst_res ]
+    return np.array( lst_mass )
+
+def get_res_CoM( lst_res: list[ gemmi.Residue ]) -> np.ndarray:
+    lst_cm = [get_CoM( get_atom_coord( res ), get_atom_weights( res ) ) 
+                                                    for res in lst_res ]
+    return np.array( lst_cm )
+
+
+
 
 ### Selection functions
 
-def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable, *args,
-                                                        ) -> gemmi.Structure:
+def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable, 
+                                        *args, **kwargs) -> gemmi.Structure:
     """
     Perform filtering on a PDB structure based on a specified level and selection.
     Args:
@@ -121,7 +188,7 @@ def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable, *args,
     new_pdb = empty_pdb # Create new Structure Object to Store selected elements
   # Looking at models
     if level == 'model': 
-        sele_models = selection( pdb, *args) # -> list[ gemmi.Model ]
+        sele_models = selection( pdb, *args, **kwargs) # -> list[ gemmi.Model ]
         for sele_model in sele_models:
             new_pdb.add_model( sele_model ) # Fill Structure with selected Model Objects
     else:
@@ -131,7 +198,7 @@ def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable, *args,
   # Looking a chains
             new_model = new_pdb[-1] # Call Last Empty Model Object to Store chains in
             if level == 'chain': 
-                sele_chains = selection( model, *args) # -> list[ gemmi.Chain ]
+                sele_chains = selection( model, *args, **kwargs) # -> list[ gemmi.Chain ]
                 for sele_chain in sele_chains:
                     new_model.add_chain( sele_chain )
             else:
@@ -141,18 +208,18 @@ def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable, *args,
   # Looking at residues 
                     new_chain = new_model[chain.name] # Call Emtpy Chain Object to Store residue Objects in 
                     if level == 'residue':
-                        sele_residues = selection( chain, *args) # list[ gemmi.Residue ]
+                        sele_residues = selection( chain, *args, **kwargs) # list[ gemmi.Residue ]
                         for sele_residue in sele_residues: 
                             new_chain.add_residue( sele_residue )
                     else:
                         for residue in chain:
-                            empty_resi = deepcopy( residue )
-                            while len( empty_resi) > 0 : del empty_resi[0] # Only keep residue level info, delete all atoms
-                            new_chain.add_residue( empty_resi ) # Create Residue Object without atoms
+                            empty_res = deepcopy( residue )
+                            while len( empty_res) > 0 : del empty_res[0] # Only keep residue level info, delete all atoms
+                            new_chain.add_residue( empty_res ) # Create Residue Object without atoms
   # Looking at atoms                          
                             new_residue = new_chain[-1] # Store Object of atoms
                             if level == 'atom':
-                                sele_atoms = selection( residue, *args) # list[ gemmi.Atom ]
+                                sele_atoms = selection( residue, *args, **kwargs) # list[ gemmi.Atom ]
                                 # if sele_atoms != []:
                                 for sele_atom in sele_atoms:
                                     new_residue.add_atom( sele_atom )
@@ -164,8 +231,45 @@ def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable, *args,
 
     return new_pdb
 
-def sele_Lig( chain: gemmi.Chain ):
-    return [ res for res in chain if res.name == "LIG" ]
+# sele_pdb helper functions
+
+def sele_Lig( lst_res: list[gemmi.Residue]  ):
+    return [ res for res in lst_res if res.name == "LIG" ]
+
+def sele_AA( lst_res: list[gemmi.Residue] ):
+    return [ res for res in lst_res if gemmi.find_tabulated_residue(res.name).is_amino_acid() ]
+
+def sele_HOH( lst_res: list[gemmi.Residue] ):
+    return [ res for res in lst_res if res.name == "HOH" ]
+
+def sele_metal( lst_atom: list[gemmi.Atom] ):
+    return [ atom for atom in lst_atom if atom.element.is_metal ]
+
+def id_org_res( lst_atom: list[gemmi.Atom]):
+    if any( [ atom.element.name == "C" for atom in lst_atom ]): return True
+    else: return False
+    
+def sele_org( lst_res: list[gemmi.Residue]  ):
+    return [ res for res in lst_res if id_org_res(res) ]
+
+def sele_others( pdb: gemmi.Structure ):
+    """Ensure that select from highest to lowest level of hierarchy, for 
+    optimal results. I.e. first residues, then atoms."""
+    def sele_others_pt1( lst_res: list[gemmi.Residue]  ):
+        return [ res for res in lst_res if 
+                not gemmi.find_tabulated_residue(res.name).is_amino_acid() 
+                and res.name not in ["HOH", "LIG" ] 
+                and not id_org_res(res) ]
+
+    def sele_others_pt2( lst_atom: list[gemmi.Atom] ):
+        return [ atom for atom in lst_atom if 
+                not atom.element.is_metal  ]
+
+    others_res = sele_pdb( pdb, "residue", sele_others_pt1) 
+    others = sele_pdb( others_res, "atom", sele_others_pt2)
+    return others
+
+### END sele_pdb helper functions
 
 def sele_res( pdb: gemmi.Structure, conditions: dict | None 
                                                     ) ->list[ gemmi.Residue]:
