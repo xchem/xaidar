@@ -269,6 +269,21 @@ def sele_others( pdb: gemmi.Structure ):
     others = sele_pdb( others_res, "atom", sele_others_pt2)
     return others
 
+def sele_dist_AA( lst_res: list[gemmi.Residue], coord: gemmi.Position, 
+                                                        dist: float = 10 ):
+    
+    """
+    Select residues within a specified distance from a given coordinate.
+    Args:
+    - lst_res (list of gemmi.Residue): List of amino acid gemmi.Residue objects.
+    - coord (gemmi.Position): The reference coordinate.
+    - dist (float): The distance threshold.
+    Returns:
+    - list of gemmi.Residue: Residues within the specified distance from the coordinate.
+    """
+    return [ res for res in lst_res if 
+                res.get_ca().pos.dist( coord ) < dist  ]
+
 ### END sele_pdb helper functions
 
 def sele_res( pdb: gemmi.Structure, conditions: dict | None 
