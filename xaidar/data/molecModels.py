@@ -519,7 +519,8 @@ class seqAlign():
 # RDKit Tools
 ##################
 
-def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', highlight = None) -> None:
+def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', 
+                                        highlight = None) -> None:
     # Create a py3Dmol view object
     view = py3Dmol.view(width=250, height=250)
     for idx, mol in enumerate(mol_lst):
@@ -527,17 +528,20 @@ def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', highlight = None)
         # The second argument specifies the format
         view.addModel(Chem.MolToMolBlock(mol), file_type)
         if highlight:
-            view.setStyle({'serial': highlight[idx]}, {'sphere': {'color': 'blue', 'radius': 1.0}})
+            view.setStyle({'serial': highlight[idx]}, 
+                          {'sphere': {'color': 'blue', 'radius': 1.0}})
     # Set the visualization style
     view.setStyle({'stick': {}})
 
-    view.setStyle({'serial': highlight[0]}, {'sphere': {'color': 'red', 'radius': 1.0}})
+    view.setStyle({'serial': highlight[0]}, 
+                  {'sphere': {'color': 'red', 'radius': 1.0}})
     # Center and zoom the view
     view.zoomTo()
     # Show the interactive viewer
     view.show()
 
-def create_newOrder( ref_at_idx:list, trgt_at_idx: list):
+def create_newOrder( ref_at_idx:list, trgt_at_idx: list, 
+                    ref_mol:Chem.Mol= None, target_mol: Chem.Mol= None):
     """
     Outputs a list of new indexes for a target molecule so that its atoms
     are ordered in the same way as a reference molecule based on a common
@@ -548,8 +552,15 @@ def create_newOrder( ref_at_idx:list, trgt_at_idx: list):
     return: 
     - list of new atom indexes for the target molecule
     """
+    if ref_mol.GetNumAtoms() > target_mol.GetNumAtoms():
+        raise ValueError("Reference atom index list is longer " \
+        "than target atom index list.\nIt must be smaller or equal." \
+        "This ensures that reindexing does not create gaps.") 
     map_dict = dict( zip(ref_at_idx, trgt_at_idx))
     new_order = [ map_dict[i] for i in sorted(list(ref_at_idx)) ]
+    missing_idx = [ i for i in list( range(target_mol.GetNumAtoms())) 
+                                            if i not in trgt_at_idx ]
+    new_order.extend( missing_idx )
     return new_order
 
 def reindex_mol_fromCMS( ref_mol: Chem.Mol, trgt_mol: Chem.Mol):
@@ -566,7 +577,8 @@ def reindex_mol_fromCMS( ref_mol: Chem.Mol, trgt_mol: Chem.Mol):
     mcs_mol = Chem.MolFromSmarts(mcs_result.smartsString)
     ref_match = ref_mol.GetSubstructMatch(mcs_mol)
     trgt_match = trgt_mol.GetSubstructMatch(mcs_mol)
-    new_order = create_newOrder( ref_match, trgt_match)
+    new_order = create_newOrder( ref_match, trgt_match, 
+                                ref_mol= ref_mol, target_mol = trgt_mol)
     new_trgt_mol = Chem.RenumberAtoms( trgt_mol,  new_order )
     return new_trgt_mol
 
@@ -575,5 +587,5 @@ def align_mols( ref_mol, trgt_mol):
     mcs_mol = Chem.MolFromSmarts(mcs_result.smartsString)
     ref_match = ref_mol.GetSubstructMatch(mcs_mol)
     trgt_match = trgt_mol.GetSubstructMatch(mcs_mol)
-    AllChem.AlignMol(trgt_mol, ref_mol, atomMap= list(zip(trgt_match, ref_match)) )
+    AllChem.AlignMol(trgt_mol,ref_mol,atomMap=list(zip(trgt_match, ref_match)))
     return trgt_mol
