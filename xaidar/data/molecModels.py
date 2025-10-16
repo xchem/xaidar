@@ -171,7 +171,24 @@ def get_res_CoM( lst_res: list[ gemmi.Residue ]) -> np.ndarray:
                                                     for res in lst_res ]
     return np.array( lst_cm )
 
+# Chain Level Function
 
+def get_chain_seq(lst_chain: list[gemmi.Chain]) -> list[str]:
+    """
+    Get the amino acid sequence for each chain in a list of gemmi.Chain objects.
+    """
+    lst_seqs = []
+    for chain in lst_chain:
+        if isinstance( chain, gemmi.Chain):lst_res = chain.whole()
+        elif isinstance( chain, list) and isinstance( chain[0], gemmi.Residue):
+            lst_res = chain
+        else: raise ValueError("Input must be a gemmi.Chain or list of " \
+        "                                                   gemmi.Residue")
+        lst_aa = [gemmi.find_tabulated_residue(res.name).one_letter_code 
+                                                    for res in lst_res]
+        seq_aa = "".join(lst_aa)
+        lst_seqs.append(seq_aa )
+    return lst_seqs
 
 
 ### Selection functions
@@ -517,7 +534,7 @@ class seqAlign():
 
 ####################
 # RDKit Tools
-##################
+####################
 
 def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', 
                                         highlight = None) -> None:
@@ -558,9 +575,9 @@ def create_newOrder( ref_at_idx:list, trgt_at_idx: list,
         "This ensures that reindexing does not create gaps.") 
     map_dict = dict( zip(ref_at_idx, trgt_at_idx))
     new_order = [ map_dict[i] for i in sorted(list(ref_at_idx)) ]
-    missing_idx = [ i for i in list( range(target_mol.GetNumAtoms())) 
+    missing_idx = [ i for i in list( range(target_mol.GetNumAtoms()))           # Get missing indices in of the target molecule (bc it is larger)
                                             if i not in trgt_at_idx ]
-    new_order.extend( missing_idx )
+    new_order.extend( missing_idx )                                             # Add missing indices at the end of the new order
     return new_order
 
 def reindex_mol_fromCMS( ref_mol: Chem.Mol, trgt_mol: Chem.Mol):
@@ -574,10 +591,10 @@ def reindex_mol_fromCMS( ref_mol: Chem.Mol, trgt_mol: Chem.Mol):
     - new_trgt_mol: reindexed target RDKit molecule
     """
     mcs_result = rdFMCS.FindMCS( [ref_mol, trgt_mol])
-    mcs_mol = Chem.MolFromSmarts(mcs_result.smartsString)
-    ref_match = ref_mol.GetSubstructMatch(mcs_mol)
+    mcs_mol = Chem.MolFromSmarts(mcs_result.smartsString)                       # Create mol object of matching atoms only from SMARTS string
+    ref_match = ref_mol.GetSubstructMatch(mcs_mol)                              # Get indices of matching atoms in reference and target molecules    
     trgt_match = trgt_mol.GetSubstructMatch(mcs_mol)
-    new_order = create_newOrder( ref_match, trgt_match, 
+    new_order = create_newOrder( ref_match, trgt_match,                         # Get new order of target molecule atoms to match related refence molecule atoms
                                 ref_mol= ref_mol, target_mol = trgt_mol)
     new_trgt_mol = Chem.RenumberAtoms( trgt_mol,  new_order )
     return new_trgt_mol
