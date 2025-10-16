@@ -540,6 +540,50 @@ class seqAlign():
         print("      ", self.result.traceback.comp)
         print("Query:", self.result.traceback.query)
         return self
+
+class model_seqAlign( seqAlign):
+    def __init__( self, refmodel: gemmi.Structure, querymodel: gemmi.Structure, sanityCheck: bool = True): 
+        self.refmodel = refmodel
+        self.querymodel = querymodel
+        self.refseq = get_chain_seq( flatten_pdb( refmodel, level = "chain") )[0]
+        self.queryseq = get_chain_seq( flatten_pdb( querymodel, level = "chain") )[0] 
+        super().__init__( refseq = self.refseq, queryseq = self.queryseq, 
+                                                    sanityCheck = sanityCheck)       
+        self.matched_res = { "Ref": None, "Query": None }                      # Dictionary of matched residues {"Ref": [residue objects], "Query": [residue objects]    }
+
+
+    def map_matching_res(self):
+        super().map_matching_res()
+        ref_res = flatten_pdb(self.refmodel, level = "residue")                 # List of all residue objects in REFERENCE model
+        query_res = flatten_pdb(self.querymodel, level = "residue")             # List of all residue objects in QUERY model
+
+        self.matched_res["Ref"] = [ ref_res[idx] for idx in                     # List of matched residue objects in REFERENCE model
+                                        self.matched_indices["Ref"]["Seq_Idx"]]
+        self.matched_res["Query"] = [ query_res[idx] for idx in                 # List of matched residue objects in QUERY model
+                                    self.matched_indices["Query"]["Seq_Idx"] ]
+        
+        return self
+
+
+    def check_match(self):
+        if self.matched_indices is None:
+            self.map_matching_res()
+        if len( self.matched_indices["Ref"]["Seq_Idx"]) != len(
+                                     self.matched_indices["Query"]["Seq_Idx"]):
+            raise ValueError("Mismatch in number of matched amino acids " \
+                                                "between reference and query.")
+        ref_match_res_ids = [ res.seqid.num for res in 
+                                                    self.matched_res["Ref"] ]   # List of matched residue serial numbers in REFERENCE model    
+        query_match_res_ids = [ res.seqid.num for res in 
+                                                    self.matched_res["Query"]]  # List of matched residue serial numbers in QUERY model
+        
+        if ref_match_res_ids != query_match_res_ids:
+            print( "Mismatch in residue serial numbers between " \
+                                                        "reference and query.")
+        else:
+            print("Match of all residue serial numbers between " \
+                                                       "reference and query.")
+        return self
         
 
 ####################
