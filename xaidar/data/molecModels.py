@@ -4,9 +4,11 @@ from copy import deepcopy
 
 import gemmi
 import parasail
-import rdkit
+
 from rdkit import Chem
+from rdkit.Chem import rdFMCS, AllChem
 import py3Dmol
+
 import numpy as np
 
 def loadPDB( pdbPath: Path | str ):
@@ -330,7 +332,7 @@ def sele_closest_Chain( lst_chains: list[gemmi.Chain],
         return [selected_chain]
 
     # Model level functions
-    
+
 def sele_model( lst_model: list[gemmi.Model], lst_idx = [0],level = False ):
     if level: return "model"
     return [ lst_model[idx] for idx in lst_idx ]
@@ -534,3 +536,44 @@ def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', highlight = None)
     view.zoomTo()
     # Show the interactive viewer
     view.show()
+
+def create_newOrder( ref_at_idx:list, trgt_at_idx: list):
+    """
+    Outputs a list of new indexes for a target molecule so that its atoms
+    are ordered in the same way as a reference molecule based on a common
+    substructure match.
+    Args:
+    - ref_at_idx: list of atom indexes in the reference molecule
+    - trgt_at_idx: list of matching atom indexes in the target molecule
+    return: 
+    - list of new atom indexes for the target molecule
+    """
+    map_dict = dict( zip(ref_at_idx, trgt_at_idx))
+    new_order = [ map_dict[i] for i in sorted(list(ref_at_idx)) ]
+    return new_order
+
+def reindex_mol_fromCMS( ref_mol: Chem.Mol, trgt_mol: Chem.Mol):
+    """
+    Reindex atoms in the target molecule based on the common substructure
+    match with the reference molecule.
+    Args:
+    - ref_mol: reference RDKit molecule
+    - trgt_mol: target RDKit molecule to be reindexed
+    return:
+    - new_trgt_mol: reindexed target RDKit molecule
+    """
+    mcs_result = rdFMCS.FindMCS( [ref_mol, trgt_mol])
+    mcs_mol = Chem.MolFromSmarts(mcs_result.smartsString)
+    ref_match = ref_mol.GetSubstructMatch(mcs_mol)
+    trgt_match = trgt_mol.GetSubstructMatch(mcs_mol)
+    new_order = create_newOrder( ref_match, trgt_match)
+    new_trgt_mol = Chem.RenumberAtoms( trgt_mol,  new_order )
+    return new_trgt_mol
+
+def align_mols( ref_mol, trgt_mol):
+    mcs_result = rdFMCS.FindMCS( [ref_mol, trgt_mol])
+    mcs_mol = Chem.MolFromSmarts(mcs_result.smartsString)
+    ref_match = ref_mol.GetSubstructMatch(mcs_mol)
+    trgt_match = trgt_mol.GetSubstructMatch(mcs_mol)
+    AllChem.AlignMol(trgt_mol, ref_mol, atomMap= list(zip(trgt_match, ref_match)) )
+    return trgt_mol
