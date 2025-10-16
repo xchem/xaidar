@@ -100,6 +100,7 @@ def flatten_pdb(pdb: gemmi.Structure, level : str)-> (list[ gemmi.Model]|
 ### Extract information functions
 
 def get_pdb_stats(structure: gemmi.Structure):
+    print("\n####################")
     print( "Number of models: {}".format( len(structure) ) )
     model = structure[0]
     print( "Number of chains in 1st Model: {}".format( len(model) ) )
@@ -238,45 +239,52 @@ def sele_pdb(pdb: gemmi.Structure, selection : Callable,
 
     # sele_pdb helper functions
 
-def sele_Lig( lst_res: list[gemmi.Residue]  ):
+def sele_Lig( lst_res: list[gemmi.Residue], level = False):
+    if level: return "residue"
     return [ res for res in lst_res if res.name == "LIG" ]
 
 def sele_AA( lst_res: list[gemmi.Residue] , level = False):
     if level: return "residue"
     return [ res for res in lst_res if gemmi.find_tabulated_residue(res.name).is_amino_acid() ]
 
-def sele_HOH( lst_res: list[gemmi.Residue] ):
+def sele_HOH( lst_res: list[gemmi.Residue], level = False  ):
+    if level: return "residue"
     return [ res for res in lst_res if res.name == "HOH" ]
 
-def sele_metal( lst_atom: list[gemmi.Atom] ):
+def sele_metal( lst_atom: list[gemmi.Atom], level = False ):
+    if level: return "atom"
     return [ atom for atom in lst_atom if atom.element.is_metal ]
 
-def id_org_res( lst_atom: list[gemmi.Atom]):
+def id_org_res( lst_atom: list[gemmi.Atom], level = False):
+    if level: return "atom"
     if any( [ atom.element.name == "C" for atom in lst_atom ]): return True
     else: return False
     
-def sele_org( lst_res: list[gemmi.Residue]  ):
+def sele_org( lst_res: list[gemmi.Residue], level = False  ):
+    if level: return "residue"
     return [ res for res in lst_res if id_org_res(res) ]
 
 def sele_others( pdb: gemmi.Structure ):
     """Ensure that select from highest to lowest level of hierarchy, for 
     optimal results. I.e. first residues, then atoms."""
-    def sele_others_pt1( lst_res: list[gemmi.Residue]  ):
+    def sele_others_pt1( lst_res: list[gemmi.Residue], level = False  ):
+        if level: return "residue"
         return [ res for res in lst_res if 
                 not gemmi.find_tabulated_residue(res.name).is_amino_acid() 
                 and res.name not in ["HOH", "LIG" ] 
                 and not id_org_res(res) ]
 
-    def sele_others_pt2( lst_atom: list[gemmi.Atom] ):
+    def sele_others_pt2( lst_atom: list[gemmi.Atom], level = False ):
+        if level: return "atom"
         return [ atom for atom in lst_atom if 
                 not atom.element.is_metal  ]
 
-    others_res = sele_pdb( pdb, "residue", sele_others_pt1) 
-    others = sele_pdb( others_res, "atom", sele_others_pt2)
+    others_res = sele_pdb( pdb,  sele_others_pt1, level= "residue") 
+    others = sele_pdb( others_res, sele_others_pt2, level= "atom")
     return others
 
 def sele_dist_AA( lst_res: list[gemmi.Residue], coord: gemmi.Position, 
-                                                        dist: float = 10 ):
+                                        dist: float = 10, level = False ):
     
     """
     Select residues within a specified distance from a given coordinate.
@@ -287,12 +295,14 @@ def sele_dist_AA( lst_res: list[gemmi.Residue], coord: gemmi.Position,
     Returns:
     - list of gemmi.Residue: Residues within the specified distance from the coordinate.
     """
+    if level: return "residue"
     return [ res for res in lst_res if 
                 res.get_ca().pos.dist( coord ) < dist  ]
         
         # Chains level functions
 def sele_closest_Chain( lst_chains: list[gemmi.Chain], 
-                       CoM: gemmi.Position , verbose = False) -> list[gemmi.Chain]:
+                       CoM: gemmi.Position , verbose = False, 
+                       level = False) -> list[gemmi.Chain]:
     
     """
     Select the chain that contains the ligand and is closest to the CoM
@@ -304,6 +314,7 @@ def sele_closest_Chain( lst_chains: list[gemmi.Chain],
     Returns:
     - list[gemmi.Chain]: List containing the selected chain.
     """
+    if level: return "chain"
     if len(lst_chains) == 1:
         if verbose: print("Only one chain in the PDB, returning it")
         return lst_chains
@@ -318,7 +329,11 @@ def sele_closest_Chain( lst_chains: list[gemmi.Chain],
                 selected_chain = chain
         return [selected_chain]
 
-
+    # Model level functions
+    
+def sele_model( lst_model: list[gemmi.Model], lst_idx = [0],level = False ):
+    if level: return "model"
+    return [ lst_model[idx] for idx in lst_idx ]
 
 
     ### END sele_pdb helper functions
