@@ -450,31 +450,33 @@ class seqAlign():
     def __init__( self, refseq: str, queryseq: str, sanityCheck: bool = True): 
         self.refseq = refseq
         self.queryseq = queryseq
-        self.result = None
+        self.result = None                                                       # parasail alignment result object
         self.reverseQuery = False
         self.sanityCheck = sanityCheck
+        self.matched_indices = None                                              # Dictionary of matched indices and AAs {"Ref":{"Seq_Idx":None, "Seq_AA":None }, "Query":{"Seq_Idx":None, "Seq_AA":None }}
         self.matched_indices = None
-        if sanityCheck:
+        if sanityCheck:                                                                                                 
             self.find_orientation()
-            if self.reverseQuery: print("Warning: Query sequence reversed for better alignment")
+            if self.reverseQuery: 
+                print("Warning: Query sequence reversed for better alignment")
 
     def align( self, mode: str = "global", gap_open: int = 10, gap_extend: int = 1,
               matrix: str = "blosum62"):
         if mode == "global":
-            self.result = parasail.nw_trace_striped_32( self.queryseq, self.refseq, gap_open, gap_extend,
-                                      getattr( parasail, matrix) )
+            self.result = parasail.nw_trace_striped_32( self.queryseq,
+                self.refseq, gap_open, gap_extend, getattr( parasail, matrix) )
         elif mode == "local":
-            self.result = parasail.sw_trace_striped_32( self.queryseq, self.refseq, gap_open, gap_extend,
-                                      getattr( parasail, matrix))
+            self.result = parasail.sw_trace_striped_32( self.queryseq, 
+                self.refseq, gap_open, gap_extend, getattr( parasail, matrix))
         else:
             raise ValueError("Invalid mode. Choose 'global' or 'local'.")
         
         return self
     
-    def find_orientation( self, mode: str = "global", gap_open: int = 10, gap_extend: int = 1,
-              matrix: str = "blosum62"):
+    def find_orientation( self, mode: str = "global", gap_open: int = 10, 
+                                gap_extend: int = 1, matrix: str = "blosum62"):
         """
-        Find if the best score is obtained with the query sequence reversed
+        Find if the best alignment is obtained by reversing the query sequence.
         """
         normalScore = self.align(mode = mode, gap_open = gap_open, 
                     gap_extend = gap_extend,matrix = matrix).result.score
@@ -484,15 +486,14 @@ class seqAlign():
         if reverseScore > normalScore:
             self.reverseQuery = True
         else:
-            self.queryseq = self.queryseq[::-1]
+            self.queryseq = self.queryseq[::-1]                                 # Restore original query sequence
             self.align(mode = mode, gap_open = gap_open, 
                     gap_extend = gap_extend,matrix = matrix)
-            self.reverseQuery = False
-            # self.queryseq = self.queryseq[::-1]                                       # Restore original query
-
-    def match_indices( self):
-        if self.result is None:
-            raise ValueError("Alignment not performed yet. Call align() first.")
+            self.reverseQuery = False                                   
+        return self
+    
+    def map_matching_res( self):
+        if self.result is None: self.align()                                    # Perform alignment if not done already to obtain traceback / self.result 
         matches = {"Ref":{"Seq_Idx":None, "Seq_AA":None },
                    "Query":{"Seq_Idx":None, "Seq_AA":None }}
         comp_matchIndex = [ idx for idx, char in                                # Get indices of matches in comparison string
@@ -523,13 +524,22 @@ class seqAlign():
         self.matched_indices = matches
 
         return self
-
+    
     def visualize( self):
-        if self.result is None:
-            raise ValueError("Alignment not performed yet. Call align() first.")
+        if self.result is None: self.align()                                    # Perform alignment if not done already to obtain traceback / self.result
+        comp_size = len(self.result.traceback.comp)
+        count = list( " "*comp_size )
+        for idx in range(comp_size):
+            if idx % 100 - 99 == 0 and idx != 0: count[idx] = "+"
+            elif idx % 50 - 49 == 0 and idx != 0: count[idx] = "*"
+            elif idx % 10 - 9 == 0 and idx != 0: count[idx] = "|"
+        count = "".join(count)
+        
+        print("      ", count)
         print("Ref:  ", self.result.traceback.ref)
         print("      ", self.result.traceback.comp)
         print("Query:", self.result.traceback.query)
+        return self
         
 
 ####################
