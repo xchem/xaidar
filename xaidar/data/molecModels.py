@@ -173,8 +173,8 @@ def get_res_CoM( lst_res: list[ gemmi.Residue ]) -> np.ndarray:
 
 ### Selection functions
 
-def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable, 
-                                        *args, **kwargs) -> gemmi.Structure:
+def sele_pdb(pdb: gemmi.Structure, selection : Callable, 
+                                        *args, level: str = None, **kwargs) -> gemmi.Structure:
     """
     Perform filtering on a PDB structure based on a specified level and selection.
     Used to access a specific level of the gemmi.Structure hierarchy and filter
@@ -188,6 +188,7 @@ def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable,
       Returns:
       - list: A list of elements that meet the filtering selection.
     """
+    level = selection( pdb, *args, level = True, **kwargs) if level is None else level
     empty_pdb = deepcopy( pdb )                                                     # Store Object of models
     while len(empty_pdb) > 0: del empty_pdb[0]                                      # Remove everything except Structure level info
     new_pdb = empty_pdb                                                             # Create new Structure Object to Store selected elements
