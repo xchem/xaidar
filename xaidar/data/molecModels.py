@@ -3,8 +3,11 @@ from typing import Callable
 from copy import deepcopy
 
 import gemmi
+import parasail
+import rdkit
+from rdkit import Chem
+import py3Dmol
 import numpy as np
-
 
 def loadPDB( pdbPath: Path | str ):
     return gemmi.read_pdb( str(pdbPath) )
@@ -174,6 +177,8 @@ def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable,
                                         *args, **kwargs) -> gemmi.Structure:
     """
     Perform filtering on a PDB structure based on a specified level and selection.
+    Used to access a specific level of the gemmi.Structure hierarchy and filter
+    elements at that level using a provided selection function.
     Args:
     - pdb (gemmi.Structure): The PDB structure to filter.
     - level (str): The level of filtering ('model', 'chain', 'residue', 'atom').
@@ -183,60 +188,60 @@ def sele_pdb(pdb: gemmi.Structure, level: str, selection : Callable,
       Returns:
       - list: A list of elements that meet the filtering selection.
     """
-    empty_pdb = deepcopy( pdb ) # Store Object of models
-    while len(empty_pdb) > 0: del empty_pdb[0] # Remove everything except Structure level info
-    new_pdb = empty_pdb # Create new Structure Object to Store selected elements
-  # Looking at models
+    empty_pdb = deepcopy( pdb )                                                     # Store Object of models
+    while len(empty_pdb) > 0: del empty_pdb[0]                                      # Remove everything except Structure level info
+    new_pdb = empty_pdb                                                             # Create new Structure Object to Store selected elements
+                                                                                    # Looking at models
     if level == 'model': 
-        sele_models = selection( pdb, *args, **kwargs) # -> list[ gemmi.Model ]
+        sele_models = selection( pdb, *args, **kwargs)                              # -> list[ gemmi.Model ]
         for sele_model in sele_models:
-            new_pdb.add_model( sele_model ) # Fill Structure with selected Model Objects
+            new_pdb.add_model( sele_model )                                         # Fill Structure with selected Model Objects
     else:
         for model_id, model in enumerate(pdb):
-            empty_model = gemmi.Model(model_id + 1 ) # Add Model attribute .num
-            new_pdb.add_model( empty_model ) # Create Model Object without chains (empty)
-  # Looking a chains
-            new_model = new_pdb[-1] # Call Last Empty Model Object to Store chains in
+            empty_model = gemmi.Model(model_id + 1 )                                # Add Model attribute .num
+            new_pdb.add_model( empty_model )                                        # Create Model Object without chains (empty)
+                                                                                    # Looking a chains
+            new_model = new_pdb[-1]                                                 # Call Last Empty Model Object to Store chains in
             if level == 'chain': 
-                sele_chains = selection( model, *args, **kwargs) # -> list[ gemmi.Chain ]
+                sele_chains = selection( model, *args, **kwargs)                    # -> list[ gemmi.Chain ]
                 for sele_chain in sele_chains:
                     new_model.add_chain( sele_chain )
             else:
                 for chain in model:
                     empty_chain = gemmi.Chain(chain.name)
-                    new_model.add_chain( empty_chain ) # Create Chain Object without residues
-  # Looking at residues 
-                    new_chain = new_model[chain.name] # Call Emtpy Chain Object to Store residue Objects in 
+                    new_model.add_chain( empty_chain )                              # Create Chain Object without residues
+                                                                                    # Looking at residues 
+                    new_chain = new_model[chain.name]                               # Call Emtpy Chain Object to Store residue Objects in 
                     if level == 'residue':
-                        sele_residues = selection( chain, *args, **kwargs) # list[ gemmi.Residue ]
+                        sele_residues = selection( chain, *args, **kwargs)          # list[ gemmi.Residue ]
                         for sele_residue in sele_residues: 
                             new_chain.add_residue( sele_residue )
                     else:
                         for residue in chain:
                             empty_res = deepcopy( residue )
-                            while len( empty_res) > 0 : del empty_res[0] # Only keep residue level info, delete all atoms
-                            new_chain.add_residue( empty_res ) # Create Residue Object without atoms
-  # Looking at atoms                          
-                            new_residue = new_chain[-1] # Store Object of atoms
+                            while len( empty_res) > 0 : del empty_res[0]            # Only keep residue level info, delete all atoms
+                            new_chain.add_residue( empty_res )                      # Create Residue Object without atoms
+                                                                                    # Looking at atoms                          
+                            new_residue = new_chain[-1]                             # Store Object of atoms
                             if level == 'atom':
-                                sele_atoms = selection( residue, *args, **kwargs) # list[ gemmi.Atom ]
-                                # if sele_atoms != []:
+                                sele_atoms = selection( residue, *args, **kwargs)   # list[ gemmi.Atom ]
                                 for sele_atom in sele_atoms:
                                     new_residue.add_atom( sele_atom )
                             else:
                                 raise ValueError(("Invalid level specified. "
                             "Choose from 'model', 'chain', 'residue', or 'atom'."))
-    # Remove empty Models, Chains, Residues from resulting Structure    
+                                                                                    # Remove empty Models, Chains, Residues from resulting Structure    
     new_pdb = clear_empty(new_pdb)
 
     return new_pdb
 
-# sele_pdb helper functions
+    # sele_pdb helper functions
 
 def sele_Lig( lst_res: list[gemmi.Residue]  ):
     return [ res for res in lst_res if res.name == "LIG" ]
 
-def sele_AA( lst_res: list[gemmi.Residue] ):
+def sele_AA( lst_res: list[gemmi.Residue] , level = False):
+    if level: return "residue"
     return [ res for res in lst_res if gemmi.find_tabulated_residue(res.name).is_amino_acid() ]
 
 def sele_HOH( lst_res: list[gemmi.Residue] ):
@@ -283,8 +288,39 @@ def sele_dist_AA( lst_res: list[gemmi.Residue], coord: gemmi.Position,
     """
     return [ res for res in lst_res if 
                 res.get_ca().pos.dist( coord ) < dist  ]
+        
+        # Chains level functions
+def sele_closest_Chain( lst_chains: list[gemmi.Chain], 
+                       CoM: gemmi.Position , verbose = False) -> list[gemmi.Chain]:
+    
+    """
+    Select the chain that contains the ligand and is closest to the CoM
+    of the protein.
+    Args:
+    - lst_chains (list[gemmi.Chain]): List of chains in the PDB.
+    - CoM (gemmi.Position): Center of Mass of the protein.
+    - ligLabel (str, optional): Ligand residue name. Defaults to "LIG".
+    Returns:
+    - list[gemmi.Chain]: List containing the selected chain.
+    """
+    if len(lst_chains) == 1:
+        if verbose: print("Only one chain in the PDB, returning it")
+        return lst_chains
+    else:
+        # Select the chain closest to the CoM
+        min_dist = float('inf')
+        selected_chain = None
+        for chain in lst_chains:
+            dist = chain.calculate_center_of_mass().dist(CoM)
+            if dist < min_dist:
+                min_dist = dist
+                selected_chain = chain
+        return [selected_chain]
 
-### END sele_pdb helper functions
+
+
+
+    ### END sele_pdb helper functions
 
 def sele_res( pdb: gemmi.Structure, conditions: dict | None 
                                                     ) ->list[ gemmi.Residue]:
@@ -326,7 +362,7 @@ def sele_res( pdb: gemmi.Structure, conditions: dict | None
 
 
 
-def find_inter_aas(prot: gemmi.Structure, lig: gemmi.Structure ):
+def find_inter_aas(prot: gemmi.Structure, lig: gemmi.Structure)-> gemmi.Structure:
     """
     Identifies amino acids that are at a distance of 4A from any atom of the ligand.
     Args:
@@ -359,3 +395,126 @@ def find_inter_aas(prot: gemmi.Structure, lig: gemmi.Structure ):
     return inter_aas
 
 
+# Functions to transfer data between different python packages (e.g. RDKit, Gemmi, PyMOL)
+
+def rdkit_to_gemmi( mol:Chem.Mol  ):
+    """ Convert an RDKit Mol object to a Gemmi Structure object.
+    Args:
+    - mol (rdkit.Chem.Mol): The RDKit Mol object to convert.
+    Returns:
+    - gemmi.Structure: The converted Gemmi Structure object.
+    """
+    pdb_block = Chem.MolToPDBBlock(mol)
+    gemmi_structure = gemmi.read_pdb_string(pdb_block)
+    return gemmi_structure
+
+# Sequence Alignment functions
+
+
+class seqAlign():
+    def __init__( self, refseq: str, queryseq: str, sanityCheck: bool = True): 
+        self.refseq = refseq
+        self.queryseq = queryseq
+        self.result = None
+        self.reverseQuery = False
+        self.sanityCheck = sanityCheck
+        self.matched_indices = None
+        if sanityCheck:
+            self.find_orientation()
+            if self.reverseQuery: print("Warning: Query sequence reversed for better alignment")
+
+    def align( self, mode: str = "global", gap_open: int = 10, gap_extend: int = 1,
+              matrix: str = "blosum62"):
+        if mode == "global":
+            self.result = parasail.nw_trace_striped_32( self.queryseq, self.refseq, gap_open, gap_extend,
+                                      getattr( parasail, matrix) )
+        elif mode == "local":
+            self.result = parasail.sw_trace_striped_32( self.queryseq, self.refseq, gap_open, gap_extend,
+                                      getattr( parasail, matrix))
+        else:
+            raise ValueError("Invalid mode. Choose 'global' or 'local'.")
+        
+        return self
+    
+    def find_orientation( self, mode: str = "global", gap_open: int = 10, gap_extend: int = 1,
+              matrix: str = "blosum62"):
+        """
+        Find if the best score is obtained with the query sequence reversed
+        """
+        normalScore = self.align(mode = mode, gap_open = gap_open, 
+                    gap_extend = gap_extend,matrix = matrix).result.score
+        self.queryseq = self.queryseq[::-1]
+        reverseScore = self.align(mode = mode, gap_open = gap_open, 
+                    gap_extend = gap_extend,matrix = matrix).result.score
+        if reverseScore > normalScore:
+            self.reverseQuery = True
+        else:
+            self.queryseq = self.queryseq[::-1]
+            self.align(mode = mode, gap_open = gap_open, 
+                    gap_extend = gap_extend,matrix = matrix)
+            self.reverseQuery = False
+            # self.queryseq = self.queryseq[::-1]                                       # Restore original query
+
+    def match_indices( self):
+        if self.result is None:
+            raise ValueError("Alignment not performed yet. Call align() first.")
+        matches = {"Ref":{"Seq_Idx":None, "Seq_AA":None },
+                   "Query":{"Seq_Idx":None, "Seq_AA":None }}
+        comp_matchIndex = [ idx for idx, char in                                # Get indices of matches in comparison string
+                           enumerate(self.result.traceback.comp) if char == '|']
+        
+        def seq_match_idx( seq: str, matchIdx: list[int]) -> list[int]:         # Helper function to get indices
+            gapCount = 0
+            seq_indices = []
+            for seq_idx, char in enumerate(seq):
+                if char == '-':
+                    gapCount += 1
+                if seq_idx in matchIdx:
+                    seq_indices.append(seq_idx - gapCount)
+            return seq_indices
+        
+        refSeq_matchIdx = seq_match_idx( self.result.traceback.ref,comp_matchIndex)
+        matches["Ref"]["Seq_Idx"] = refSeq_matchIdx 
+
+        queryseq_matchIdx = seq_match_idx( self.result.traceback.query,comp_matchIndex)
+        matches["Query"]["Seq_Idx"] = queryseq_matchIdx
+
+        refSeq_matchAA = [ self.refseq[idx] for idx in refSeq_matchIdx ]
+        matches["Ref"]["Seq_AA"] = refSeq_matchAA 
+
+        queryseq_matchAA = [ self.queryseq[idx] for idx in queryseq_matchIdx ]
+        matches["Query"]["Seq_AA"] = queryseq_matchAA 
+        
+        self.matched_indices = matches
+
+        return self
+
+    def visualize( self):
+        if self.result is None:
+            raise ValueError("Alignment not performed yet. Call align() first.")
+        print("Ref:  ", self.result.traceback.ref)
+        print("      ", self.result.traceback.comp)
+        print("Query:", self.result.traceback.query)
+        
+
+####################
+# RDKit Tools
+##################
+
+def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', highlight = None) -> None:
+    # Create a py3Dmol view object
+    view = py3Dmol.view(width=250, height=250)
+    for idx, mol in enumerate(mol_lst):
+        # Add the molecule data from the file content
+        # The second argument specifies the format
+        view.addModel(Chem.MolToMolBlock(mol), file_type)
+        if highlight:
+            view.setStyle({'serial': highlight[idx]}, {'sphere': {'color': 'blue', 'radius': 1.0}})
+    # Set the visualization style
+    view.setStyle({'stick': {}})
+
+    view.setStyle({'serial': highlight[0]}, {'sphere': {'color': 'red', 'radius': 1.0}})
+    # Center and zoom the view
+    view.zoomTo()
+    # Show the interactive viewer
+    view.show()
