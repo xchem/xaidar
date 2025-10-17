@@ -177,6 +177,8 @@ def get_chain_seq(lst_chain: list[gemmi.Chain]) -> list[str]:
     """
     Get the amino acid sequence for each chain in a list of gemmi.Chain objects.
     """
+    if isinstance( lst_chain, gemmi.Structure):
+        lst_chain = flatten_pdb(lst_chain, "chain")
     lst_seqs = []
     for chain in lst_chain:
         if isinstance( chain, gemmi.Chain):lst_res = chain.whole()
@@ -454,7 +456,6 @@ class seqAlign():
         self.reverseQuery = False
         self.sanityCheck = sanityCheck
         self.matched_indices = None                                              # Dictionary of matched indices and AAs {"Ref":{"Seq_Idx":None, "Seq_AA":None }, "Query":{"Seq_Idx":None, "Seq_AA":None }}
-        self.matched_indices = None
         if sanityCheck:                                                                                                 
             self.find_orientation()
             if self.reverseQuery: 
@@ -492,13 +493,29 @@ class seqAlign():
             self.reverseQuery = False                                   
         return self
     
-    def map_matching_res( self):
+    def map_matching_res( self, match_type = "exact"):
+        
+        """ 
+        Map the matched residues between reference and query sequences based
+        on alignment result.
+        Args:
+        - match_type (str ("exact","all") ): Type of match to consider. Options
+                are "exact" for exact matches only, or "all" for including
+                conservative and semi-conservative matches.
+        Returns:
+            self: Updated seqAlign object with matched indices.
+        """
+
         if self.result is None: self.align()                                    # Perform alignment if not done already to obtain traceback / self.result 
         matches = {"Ref":{"Seq_Idx":None, "Seq_AA":None },
                    "Query":{"Seq_Idx":None, "Seq_AA":None }}
-        comp_matchIndex = [ idx for idx, char in                                # Get indices of matches in comparison string
-                           enumerate(self.result.traceback.comp) if char == '|']
-        
+
+        if match_type == "exact":  matchpattern = ["|"]                         # Exact matches only
+        elif match_type == "all": matchpattern = ["|", ":", "."]                # Include conservative and semi-conservative matches
+
+        comp_matchIndex=[idx for idx, char in enumerate(self.result.traceback.comp) # Get indices of matches in comparison string 
+                           if char in matchpattern ]
+   
         def seq_match_idx( seq: str, matchIdx: list[int]) -> list[int]:         # Helper function to get indices
             gapCount = 0
             seq_indices = []
@@ -550,10 +567,10 @@ class model_seqAlign( seqAlign):
         super().__init__( refseq = self.refseq, queryseq = self.queryseq, 
                                                     sanityCheck = sanityCheck)       
         self.matched_res = { "Ref": None, "Query": None }                      # Dictionary of matched residues {"Ref": [residue objects], "Query": [residue objects]    }
+        self.match_status = None                                                # Status of match check (None if not checked, True if all matched, False if mismatch)          
 
-
-    def map_matching_res(self):
-        super().map_matching_res()
+    def map_matching_res(self, match_type = "exact"):
+        super().map_matching_res( match_type = match_type)                      # Call parent method to get matched indices
         ref_res = flatten_pdb(self.refmodel, level = "residue")                 # List of all residue objects in REFERENCE model
         query_res = flatten_pdb(self.querymodel, level = "residue")             # List of all residue objects in QUERY model
 
@@ -565,7 +582,7 @@ class model_seqAlign( seqAlign):
         return self
 
 
-    def check_match(self):
+    def check_match(self, verbose = True):
         if self.matched_indices is None:
             self.map_matching_res()
         if len( self.matched_indices["Ref"]["Seq_Idx"]) != len(
@@ -578,11 +595,15 @@ class model_seqAlign( seqAlign):
                                                     self.matched_res["Query"]]  # List of matched residue serial numbers in QUERY model
         
         if ref_match_res_ids != query_match_res_ids:
-            print( "Mismatch in residue serial numbers between " \
+            if verbose:
+                print( "Mismatch in residue serial numbers between " \
                                                         "reference and query.")
+            self.match_status = False
         else:
-            print("Match of all residue serial numbers between " \
+            if verbose:
+                print("Match of all residue serial numbers between " \
                                                        "reference and query.")
+            self.match_status = True
         return self
         
 
