@@ -171,6 +171,17 @@ def get_res_CoM( lst_res: list[ gemmi.Residue ]) -> np.ndarray:
                                                     for res in lst_res ]
     return np.array( lst_cm )
 
+def get_res_bfactors( lst_res: list[gemmi.Residue] | gemmi.Structure,
+                     sign_fig = 3) -> list[float]:
+    """ Get the b-factors for a list of residues """
+    if isinstance( lst_res, gemmi.Structure):
+        lst_res = flatten_pdb(lst_res, "residue")
+
+    bfactors = [ round( float( np.mean( [atom.b_iso for atom in res]) ), sign_fig)
+                                             for res in lst_res ]
+
+    return bfactors
+
 # Chain Level Function
 
 def get_chain_seq(lst_chain: list[gemmi.Chain]) -> list[str]:
@@ -698,7 +709,7 @@ def get_aa_distribution( ref_model: gemmi.Structure,
 ####################
 # RDKit Tools
 ####################
-def rdkit_to_gemmi( rdkit_mol ):
+def rdkit_to_gemmi( rdkit_mol_lst: list[Chem.Mol] ):
     """
     Convert RDKit molecule to Gemmi structure.
     Args:
@@ -706,9 +717,17 @@ def rdkit_to_gemmi( rdkit_mol ):
     return:
     - gemmi_struct: Gemmi structure object
     """
-    pdb_block = Chem.MolToPDBBlock( rdkit_mol )
-    gemmi_struct = gemmi.read_pdb_string( pdb_block )
-    return gemmi_struct
+    if ( not isinstance( rdkit_mol_lst, list) and 
+         not isinstance( rdkit_mol_lst, Chem.SDMolSupplier) ):
+        rdkit_mol_lst = [ rdkit_mol_lst ]
+    lst_gemmi_struct = []
+    for rdkit_mol in rdkit_mol_lst:
+        if rdkit_mol is None:
+            continue
+        pdb_block = Chem.MolToPDBBlock( rdkit_mol )
+        gemmi_struct = gemmi.read_pdb_string( pdb_block )
+        lst_gemmi_struct.append( gemmi_struct )
+    return lst_gemmi_struct
 
 def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', 
                                         highlight = None) -> None:
