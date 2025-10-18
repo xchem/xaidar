@@ -319,6 +319,32 @@ def sele_dist_AA( lst_res: list[gemmi.Residue], coord: gemmi.Position,
     if level: return "residue"
     return [ res for res in lst_res if 
                 res.get_ca().pos.dist( coord ) < dist  ]
+
+def sele_res_idx( lst_res: list[gemmi.Residue], lst_slices: list[ tuple ],
+                slice_within = True, level = False  ):
+    """
+    Select residues from a list based on specified slices.
+    Args:
+    - lst_res (list[gemmi.Residue]): List of residue objects.
+    - lst_slices (list[tuple]): List of tuples specifying slices to remove.
+        Must be in (start, end) format, where 'start' is inclusive and 'end' is exclusive.
+        The slices should not overlap. The integers must be positive and within the range of lst_res.
+    - slice_within (bool, optional): If True, remove residues within the slices.
+        If False, remove residues outside the slices. Defaults to True.
+    - level (bool, optional): If True, operate at residue level. Defaults to False.
+    Returns:
+    - list[gemmi.Residue]: Updated list of residue objects after removal.
+    """
+    if level: return "residue"
+    lst_slices = sorted( lst_slices, reverse=True )
+    new_lst_res = lst_res if slice_within else []
+    for slice_idx in lst_slices:
+        start, end = slice_idx
+        if slice_within:
+            del new_lst_res[start:end]
+        else:
+            new_lst_res = new_lst_res + lst_res[start:end]
+    return new_lst_res
         
         # Chains level functions
 def sele_closest_Chain( lst_chains: list[gemmi.Chain], 
