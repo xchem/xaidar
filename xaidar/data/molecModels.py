@@ -568,27 +568,62 @@ class model_seqAlign( seqAlign):
     def __init__( self, refmodel: gemmi.Structure, querymodel: gemmi.Structure, sanityCheck: bool = True): 
         self.refmodel = refmodel
         self.querymodel = querymodel
-        self.refseq = get_chain_seq( flatten_pdb( refmodel, level = "chain") )[0]
-        self.queryseq = get_chain_seq( flatten_pdb( querymodel, level = "chain") )[0] 
+        self.refseq = get_chain_seq( refmodel )[0]                              # Get sequence of first chain in REFERENCE model
+        self.queryseq = get_chain_seq( querymodel )[0]                          # Get sequence of first chain in QUERY model            
         super().__init__( refseq = self.refseq, queryseq = self.queryseq, 
-                                                    sanityCheck = sanityCheck)       
-        self.matched_res = { "Ref": None, "Query": None }                      # Dictionary of matched residues {"Ref": [residue objects], "Query": [residue objects]    }
+                                                    sanityCheck = sanityCheck)
+        self.ref_res_lst = flatten_pdb( refmodel, "chain")[0].whole()           # List of all residue objects in REFERENCE model
+        self.query_res_lst = flatten_pdb( querymodel, "chain")[0].whole()      # List of all residue objects in QUERY model       
+        self.matched_indices = None                                             # Dictionary of matched indices and AAs {"Ref":{"Seq_Idx":None, "Seq_AA":None }, "Query":{"Seq_Idx":None, "Seq_AA":None }}
+        self.matched_res = { "Ref": None, "Query": None }                       # Dictionary of matched residues {"Ref": [residue objects], "Query": [residue objects]    }
         self.match_status = None                                                # Status of match check (None if not checked, True if all matched, False if mismatch)          
 
-    def map_matching_res(self, match_type = "exact"):
-        super().map_matching_res( match_type = match_type)                      # Call parent method to get matched indices
-        ref_res = flatten_pdb(self.refmodel, level = "residue")                 # List of all residue objects in REFERENCE model
-        query_res = flatten_pdb(self.querymodel, level = "residue")             # List of all residue objects in QUERY model
+    def map_matching_res(self, match_type = "exact", gaps = False):
+        """
+        Map matched residues between reference and query models based on sequence alignment.
+        Args:
+        - match_type (str, optional): Type of match to consider. Defaults to "exact".
+            Options:
+            - "exact": Only exact matches of amino acids.
+            - "all": Includes partial matches and conserved substitutions.
+        - gaps (bool, optional): Whether to include gaps in the mapping. Defaults to False.
+        Returns:
+        - self: Updated object with matched residues.
+        """
+        super().map_matching_res( match_type = match_type)                      # Call parent method to get matched indices (self.matched_indices)
+        self.ref_res_lst  = flatten_pdb(self.refmodel, level = "residue")                 # List of all residue objects in REFERENCE model
+        self.query_res_lst = flatten_pdb(self.querymodel, level = "residue")             # List of all residue objects in QUERY model
 
-        self.matched_res["Ref"] = [ ref_res[idx] for idx in                     # List of matched residue objects in REFERENCE model
-                                        self.matched_indices["Ref"]["Seq_Idx"]]
-        self.matched_res["Query"] = [ query_res[idx] for idx in                 # List of matched residue objects in QUERY model
+
+        if gaps:                                               # Some positions in ref seq may not have a matching position in query seq due to gaps in alignment             
+            self.matched_res["Ref"] = self.ref_res_lst
+            self.matched_res["Query"] = []                                                            
+            for ref_aa_pos in range( len(self.refseq)  ):                            # Loop over all positions in ref seq
+                if ref_aa_pos in list( self.matched_indices_map.keys() ):               # If ref position has a matching position in current query seq
+                    matching_query_aa_id = self.matched_indices_map[ref_aa_pos]                   # Get matching query seq idx
+                    res = self.query_res_lst[ matching_query_aa_id ]                    # Get matching residue object in QUERY model
+                    self.matched_res["Query"].append(res)                               # Append matched residue object to list
+                else: self.matched_res["Query"].append( None )                      # If ref position has NO matching position in current query seq add None to list
+                    
+        else:
+            self.matched_res["Ref"] = [ self.ref_res_lst[idx] for idx in           # List of matched residue objects in REFERENCE model
+                                self.matched_indices["Ref"]["Seq_Idx"]]
+            self.matched_res["Query"] = [ self.query_res_lst[idx] for idx in       # List of matched residue objects in QUERY model
                                     self.matched_indices["Query"]["Seq_Idx"] ]
         
         return self
 
 
     def check_match(self, verbose = True):
+        """
+        Check if the matched residues between reference and query models have 
+        the same residue serial numbers.
+        Args:
+        - verbose (bool, optional): Whether to print mismatch information. 
+            Defaults to True.
+        Returns:
+        - self: Updated object with .match_status.
+        """
         if self.matched_indices is None:
             self.map_matching_res()
         if len( self.matched_indices["Ref"]["Seq_Idx"]) != len(
