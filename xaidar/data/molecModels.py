@@ -673,6 +673,27 @@ class model_seqAlign( seqAlign):
             self.match_status = True
         return self
         
+def get_aa_distribution( ref_model: gemmi.Structure, 
+                         query_models_lst: list[gemmi.Structure],
+                         ) -> dict:
+    """
+    Get the amino acid distribution at each position in the reference sequence
+    across a list of query models.
+    Args:
+    - ref_model (gemmi.Structure): Reference protein structure.
+    - query_models_lst (list[gemmi.Structure]): List of query protein structures.
+    Returns:
+    - dict: Dictionary with positions as keys and lists of amino acids as values.
+    
+    """
+    ref_seq = get_chain_seq( ref_model )[0]
+    aa_distrib_dict = {ref_aa_pos : [] for ref_aa_pos in range(len(ref_seq))}   # Dictionary to store AA distribution at each position in ref seq       
+    for query_model in query_models_lst[:]:
+        alignment  = model_seqAlign( ref_model, query_model)
+        alignment.map_matching_res(match_type = "exact", gaps = True)
+        for ref_idx in aa_distrib_dict.keys():                                       # Loop over each position in ref seq
+            aa_distrib_dict[ref_idx].append( alignment.matched_res["Query"][ref_idx])
+    return aa_distrib_dict
 
 ####################
 # RDKit Tools
