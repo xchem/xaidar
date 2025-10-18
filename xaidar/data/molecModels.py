@@ -698,6 +698,17 @@ def get_aa_distribution( ref_model: gemmi.Structure,
 ####################
 # RDKit Tools
 ####################
+def rdkit_to_gemmi( rdkit_mol ):
+    """
+    Convert RDKit molecule to Gemmi structure.
+    Args:
+    - rdkit_mol: RDKit molecule object
+    return:
+    - gemmi_struct: Gemmi structure object
+    """
+    pdb_block = Chem.MolToPDBBlock( rdkit_mol )
+    gemmi_struct = gemmi.read_pdb_string( pdb_block )
+    return gemmi_struct
 
 def view_3d(mol_lst: list[ Chem.Mol ], file_type: str = 'sdf', 
                                         highlight = None) -> None:
@@ -763,6 +774,15 @@ def reindex_mol_fromCMS( ref_mol: Chem.Mol, trgt_mol: Chem.Mol):
     return new_trgt_mol
 
 def align_mols( ref_mol, trgt_mol):
+    """
+    Align target molecule coordinates to reference molecule in 3D space based
+    on common substructure match.
+    Args:
+    - ref_mol: reference RDKit molecule
+    - trgt_mol: target RDKit molecule to be aligned
+    return:
+    - aligned_trgt_mol: aligned target RDKit molecule
+    """
     mcs_result = rdFMCS.FindMCS( [ref_mol, trgt_mol])
     mcs_mol = Chem.MolFromSmarts(mcs_result.smartsString)
     ref_match = ref_mol.GetSubstructMatch(mcs_mol)
