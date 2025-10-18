@@ -456,6 +456,7 @@ class seqAlign():
         self.reverseQuery = False
         self.sanityCheck = sanityCheck
         self.matched_indices = None                                              # Dictionary of matched indices and AAs {"Ref":{"Seq_Idx":None, "Seq_AA":None }, "Query":{"Seq_Idx":None, "Seq_AA":None }}
+        self.matched_indices_map = None                                          # Dictionary mapping matched indices between ref and query sequences {"Ref_to_Query":{ref_idx:query_idx}, "Query_to_Ref":{query_idx:ref_idx}}
         if sanityCheck:                                                                                                 
             self.find_orientation()
             if self.reverseQuery: 
@@ -499,9 +500,10 @@ class seqAlign():
         Map the matched residues between reference and query sequences based
         on alignment result.
         Args:
-        - match_type (str ("exact","all") ): Type of match to consider. Options
-                are "exact" for exact matches only, or "all" for including
-                conservative and semi-conservative matches.
+        - match_type (str ("exact","all") ): Type of match to consider. 
+            Options:
+            - "exact":  for exact matches only, or 
+            - "all" for matched including conservative and semi-conservative matches.
         Returns:
             self: Updated seqAlign object with matched indices.
         """
@@ -510,8 +512,10 @@ class seqAlign():
         matches = {"Ref":{"Seq_Idx":None, "Seq_AA":None },
                    "Query":{"Seq_Idx":None, "Seq_AA":None }}
 
-        if match_type == "exact":  matchpattern = ["|"]                         # Exact matches only
+        if match_type == "exact":matchpattern = ["|"]                           # Exact matches only
         elif match_type == "all": matchpattern = ["|", ":", "."]                # Include conservative and semi-conservative matches
+        else:
+            raise ValueError("Invalid match_type. Choose 'exact' or 'all'.")                  
 
         comp_matchIndex=[idx for idx, char in enumerate(self.result.traceback.comp) # Get indices of matches in comparison string 
                            if char in matchpattern ]
@@ -539,7 +543,9 @@ class seqAlign():
         matches["Query"]["Seq_AA"] = queryseq_matchAA 
         
         self.matched_indices = matches
-
+        self.matched_indices_map = dict(                                        # Map ref seq idx to query seq idx based on alignment
+                                zip( self.matched_indices["Ref"]["Seq_Idx"],
+                                    self.matched_indices["Query"]["Seq_Idx"]) )                   
         return self
     
     def visualize( self):
