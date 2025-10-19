@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Callable
 from copy import deepcopy
+from io import StringIO
 
 import gemmi
 import parasail
@@ -8,6 +9,10 @@ import parasail
 from rdkit import Chem
 from rdkit.Chem import rdFMCS, AllChem
 import py3Dmol
+
+import Bio
+from Bio import PDB
+from Bio.PDB import PDBParser, MMCIFParser, PDBIO, MMCIFIO
 
 import numpy as np
 
@@ -178,6 +183,7 @@ def get_res_bfactors( lst_res: list[gemmi.Residue] | gemmi.Structure,
         lst_res = flatten_pdb(lst_res, "residue")
 
     bfactors = [ round( float( np.mean( [atom.b_iso for atom in res]) ), sign_fig)
+                if  isinstance(res, gemmi.Residue) and len(res) > 0 else None
                                              for res in lst_res ]
 
     return bfactors
@@ -808,3 +814,55 @@ def align_mols( ref_mol, trgt_mol):
     trgt_match = trgt_mol.GetSubstructMatch(mcs_mol)
     AllChem.AlignMol(trgt_mol,ref_mol,atomMap=list(zip(trgt_match, ref_match)))
     return trgt_mol
+
+####################
+# Biopython Tools
+####################
+
+def gemmi_to_biopy( gemmi_struct: gemmi.Structure, file_type: str = "mmcif"):
+    """
+    Convert a Gemmi Structure object to a Biopython Structure object.
+    Args:
+    - gemmi_struct (gemmi.Structure): The Gemmi Structure object to convert.
+    - file_type (str): The file format to use for conversion ("pdb" or "mmcif").
+    Returns:
+    - Bio.PDB.Structure.Structure: The converted Biopython Structure object.
+    """
+    if file_type == "pdb":
+        prot_block = gemmi_struct.make_pdb_string()
+        parser = PDBParser(QUIET=True)                                          # Create a PDBParser    
+    elif file_type == "mmcif" :
+        prot_block =  gemmi_struct.make_mmcif_block().as_string()
+        parser = MMCIFParser(QUIET=True)                                        # Create an MMCIFParser
+    
+    biopython_struct = parser.get_structure(gemmi_struct.name,                  # gemmi_struct.name = ID you assign to the Biopython structure
+                                            StringIO(prot_block))               # Use StringIO to treat the string as a file
+    return biopython_struct
+
+def biopy_to_gemmi( biopython_struct: 'Bio.PDB.Structure.Structure', 
+                       file_type : str = "mmcif" ) -> gemmi.Structure:
+    """
+    Convert a Biopython Structure object to a Gemmi Structure object.
+    Args:
+    - biopython_struct (Bio.PDB.Structure.Structure): The Biopython Structure object to convert.
+    - file_type (str): The file format to use for conversion ("pdb" or "mmcif").
+    Returns:
+    - gemmi.Structure: The converted Gemmi Structure object.
+    """
+                                                                                # Write Biopython structure to a PDB string
+    if file_type == "pdb":
+        file_io = PDBIO()
+    elif file_type == "mmcif":
+        file_io = MMCIFIO()
+    else:
+        raise ValueError("Unsupported file type. Use 'pdb' or 'mmcif'.")
+    string_io = StringIO()
+    file_io.set_structure(biopython_struct)
+    file_io.save(string_io)
+    file_string = string_io.getvalue()                                              # Get the string value from the buffer
+                                                                                # Read the PDB/MMCIF string into a Gemmi Structure
+    if file_type == "pdb": gemmi_struct = gemmi.read_pdb_string(file_string)
+    elif file_type == "mmcif": 
+        gemmi_doc = gemmi.cif.read_string(file_string)                           # First, parse the string into a gemmi.cif.Document
+        gemmi_struct = gemmi.make_structure_from_block(gemmi_doc.sole_block())   # Then, create a Gemmi Structure from the sole block
+    return gemmi_struct
