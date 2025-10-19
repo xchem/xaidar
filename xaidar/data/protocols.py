@@ -22,23 +22,22 @@ def protein_processing(pdb: gemmi.Structure) -> gemmi.Structure:
 
 
 def load_and_filter_Proteins( datasets_dir: Path,
-                             mean_CoM: tuple[float,float,float] ,
+                             mean_CoM: gemmi.Position ,
                              ) -> tuple[list[gemmi.Structure], dict]:
     """
     Load and filter protein structures based on proximity to a given center of mass (CoM).
     Args:
     - datasets (list[str]): List of dataset names.
     - fileTypes (list[str]): List of file types corresponding to each dataset.
-    - mean_CoM (tuple[float,float,float], optional): Center of Mass coordinates. 
+    - mean_CoM (gemmi.Position): Center of Mass coordinates. 
             Defaults to mean_CoM.
-    - sele_AA (str, optional): Selection string for amino acids. Defaults to 
-            "residue.type == 'aminoacid'".
+
     Returns:
     - tuple[list[gemmi.Structure], dict]: Tuple containing the list of filtered 
     protein structures and a log dictionary with stats.     
     """
     lst_prots = []                                                                # List to Save filtered proteins
-    prot_logs = { "sequence": [], "chainSize":[], "NumChains":[], "NumModels":[]} # Log dictionary with stats for filtered proteins
+    prot_logs = {"sequence": [], "chainSize":[], "NumChains":[], "NumModels":[]}  # Log dictionary with stats for filtered proteins
     
     datasets = [ dataset.name for dataset in datasets_dir.iterdir()            
             if dataset.is_dir() ]
@@ -68,3 +67,19 @@ def load_and_filter_Proteins( datasets_dir: Path,
         lst_prots.append( prot)
 
     return lst_prots, prot_logs
+
+def extract_lig_from_prot( datasets_dir: Path):
+    lst_ligs = []                                                                # List to Save filtered proteins
+    prot_logs = {"sequence": [], "chainSize":[], "NumChains":[], "NumModels":[]}  # Log dictionary with stats for filtered proteins
+    
+    datasets = [ dataset.name for dataset in datasets_dir.iterdir()            
+            if dataset.is_dir() ]
+    for dataset in datasets:
+        pdb = gemmi.read_pdb( str(datasets_dir /                                # Load PDB
+                            "{}/{}.pdb".format(dataset, dataset) ))  
+        lig =  sele_pdb( pdb, sele_Lig)                                         # Extract LIG   
+        num_res = len( flatten_pdb( lig, "residue") )
+        if num_res == 0: lst_ligs.append( None )                            
+        elif num_res > 0: lst_ligs.append( lig )                                                   # Append to list
+        else: raise ValueError("Error in extracting LIG from PDB: {}".format(dataset))
+    return lst_ligs 
