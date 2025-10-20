@@ -756,6 +756,27 @@ class structAlign():
 
         return self
     
+    def calc_rmsd( self, ref_atoms: str = "All") -> float:
+        """ 
+        Calculate RMSD between ref_prot and mobile_prot without alignment.
+        ref_atoms: str
+            Atom selection for reference structure alignment. 
+            Options: "All", "MainChain", "CaP"
+        Returns:
+        rmsd: float
+            The calculated RMSD value.
+        """
+        if ref_atoms not in ["All", "MainChain", "CaP"]:
+            raise ValueError("ref_atoms must be one of 'All', 'MainChain', or 'CaP'.")
+
+        supresult = gemmi.calculate_current_rmsd( 
+        flatten_pdb(self.ref_prot, "chain")[0].whole(),
+        flatten_pdb(self.mobile_prot, "chain" )[0].whole(),
+        flatten_pdb(self.ref_prot, "chain")[0].whole().check_polymer_type(),
+        getattr((gemmi.SupSelect),ref_atoms ), )
+        self.rmsd = supresult.rmsd
+
+        return self
 
 ####################
 # RDKit Tools
