@@ -362,7 +362,36 @@ def sele_res_idx( lst_res: list[gemmi.Residue], lst_slices: list[ tuple ],
         else:
             new_lst_res = new_lst_res + lst_res[start:end]
     return new_lst_res
-        
+
+
+def sele_closest_res( lst_res: list[gemmi.Residue], 
+                       CoM: gemmi.Position , verbose = False, 
+                       level = False) -> list[gemmi.Chain]:
+    
+    """
+    Select the chain that contains the ligand and is closest to the CoM
+    of the protein.
+    Args:
+    - lst_chains (list[gemmi.Chain]): List of chains in the PDB.
+    - CoM (gemmi.Position): Center of Mass of the protein.
+    - ligLabel (str, optional): Ligand residue name. Defaults to "LIG".
+    Returns:
+    - list[gemmi.Chain]: List containing the selected chain.
+    """
+    if level: return "residue"
+    if len(lst_res) == 1:
+        if verbose: print("Only one chain in the PDB, returning it")
+        return lst_res
+    else:
+        # Select the chain closest to the CoM
+        min_dist = float('inf')
+        selected_res = None
+        for res in lst_res:
+            dist = np.linalg.norm( [get_res_CoM([res])[0], CoM] )
+            if dist < min_dist:
+                min_dist = dist
+                selected_res = res
+        return [selected_res]
         # Chains level functions
 def sele_closest_Chain( lst_chains: list[gemmi.Chain], 
                        CoM: gemmi.Position , verbose = False, 
