@@ -712,6 +712,51 @@ def get_aa_distribution( ref_model: gemmi.Structure,
             aa_distrib_dict[ref_idx].append( alignment.matched_res["Query"][ref_idx])
     return aa_distrib_dict
 
+class structAlign():
+    def __init__( self, ref_prot:gemmi.Structure, mobile_prot:gemmi.Structure):
+        self.ref_prot : gemmi.Structure = ref_prot
+        self.mobile_prot: gemmi.Structure  = mobile_prot
+        self.aligned_prot: gemmi.Structure | None  = None
+        self.aligned_status: bool = False
+        self.transform = None
+        self.rmsd = None
+        self.rot_matrix = None
+        self.trans_vect = None
+
+    def align( self, ref_atoms: str = "All") :
+        """ 
+        Align mobile_prot to ref_prot using gemmi superposition calculation 
+        Currently, only takes one chain from each structure for alignment.
+        Also, aligns all atoms in the chain (can be modified to select specific atoms).
+        ref_atoms: str
+            Atom selection for reference structure alignment. 
+            Options: "All", "MainChain", "CaP"
+        Returns:
+        self: model_structAlign
+            The instance with updated aligned_prot, transform, rmsd, rot_matrix, 
+            trans_vect attributes.
+        """
+        self.aligned_prot = self.mobile_prot.clone()
+        if ref_atoms not in ["All", "MainChain", "CaP"]:
+            raise ValueError("ref_atoms must be one of 'All', 'MainChain', or 'CaP'.")
+
+        supresult = gemmi.calculate_superposition( 
+        flatten_pdb(self.ref_prot, "chain")[0].whole(),
+        flatten_pdb(self.aligned_prot, "chain" )[0].whole(),
+        flatten_pdb(self.aligned_prot, "chain")[0].whole().check_polymer_type(),
+        getattr((gemmi.SupSelect),ref_atoms ), )
+        
+        (flatten_pdb(self.aligned_prot, "chain" )[0].whole()
+                                .transform_pos_and_adp(supresult.transform))
+        self.transform = supresult.transform
+        self.rmsd = supresult.rmsd
+        self.rot_matrix = supresult.transform.mat # Rotation Matrix
+        self.trans_vect = supresult.transform.vec # Translation Vector
+        self.aligned = True
+
+        return self
+    
+
 ####################
 # RDKit Tools
 ####################
