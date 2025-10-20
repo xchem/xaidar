@@ -752,37 +752,30 @@ class structAlign():
         self.rot_matrix = None
         self.trans_vect = None
 
-    def align( self, ref_atoms: str = "All") :
-        """ 
-        Align mobile_prot to ref_prot using gemmi superposition calculation 
-        Currently, only takes one chain from each structure for alignment.
-        Also, aligns all atoms in the chain (can be modified to select specific atoms).
-        ref_atoms: str
-            Atom selection for reference structure alignment. 
-            Options: "All", "MainChain", "CaP"
-        Returns:
-        self: model_structAlign
-            The instance with updated aligned_prot, transform, rmsd, rot_matrix, 
-            trans_vect attributes.
-        """
-        self.aligned_prot = self.mobile_prot.clone()
+    def calc_transform(self, ref_atoms: str = "All") :
         if ref_atoms not in ["All", "MainChain", "CaP"]:
             raise ValueError("ref_atoms must be one of 'All', 'MainChain', or 'CaP'.")
 
         supresult = gemmi.calculate_superposition( 
         flatten_pdb(self.ref_prot, "chain")[0].whole(),
-        flatten_pdb(self.aligned_prot, "chain" )[0].whole(),
-        flatten_pdb(self.aligned_prot, "chain")[0].whole().check_polymer_type(),
+        flatten_pdb(self.mobile_prot, "chain" )[0].whole(),
+        flatten_pdb(self.mobile_prot, "chain")[0].whole().check_polymer_type(),
         getattr((gemmi.SupSelect),ref_atoms ), )
         
-        (flatten_pdb(self.aligned_prot, "chain" )[0].whole()
-                                .transform_pos_and_adp(supresult.transform))
         self.transform = supresult.transform
         self.rmsd = supresult.rmsd
         self.rot_matrix = supresult.transform.mat # Rotation Matrix
         self.trans_vect = supresult.transform.vec # Translation Vector
-        self.aligned = True
 
+        return self
+
+    def apply_transform(self, transform = None):
+        self.aligned_prot = self.mobile_prot.clone()
+        if transform is not None:
+            self.transform = transform
+        (flatten_pdb(self.aligned_prot, "chain" )[0].whole()
+                                .transform_pos_and_adp(self.transform))
+        self.aligned = True
         return self
     
     def calc_rmsd( self, ref_atoms: str = "All") -> float:
@@ -804,9 +797,25 @@ class structAlign():
         flatten_pdb(self.ref_prot, "chain")[0].whole().check_polymer_type(),
         getattr((gemmi.SupSelect),ref_atoms ), )
         self.rmsd = supresult.rmsd
-
         return self
 
+    def align( self, ref_atoms: str = "All") :
+        """ 
+        Align mobile_prot to ref_prot using gemmi superposition calculation 
+        Currently, only takes one chain from each structure for alignment.
+        Also, aligns all atoms in the chain (can be modified to select specific atoms).
+        ref_atoms: str
+            Atom selection for reference structure alignment. 
+            Options: "All", "MainChain", "CaP"
+        Returns:
+        self: model_structAlign
+            The instance with updated aligned_prot, transform, rmsd, rot_matrix, 
+            trans_vect attributes.
+        """
+        self.calc_transform( ref_atoms = ref_atoms )
+        self.apply_transform()
+        return self
+    
 ####################
 # RDKit Tools
 ####################
