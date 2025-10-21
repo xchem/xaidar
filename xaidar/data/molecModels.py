@@ -22,7 +22,7 @@ def loadPDB( pdbPath: Path | str ):
 def createPDB( molecObj: gemmi.Structure | None = None, 
               modelList: list[ gemmi.Model]  | None = None,
               chainList: list[ gemmi.Chain ] | None = None,
-              residSpan: gemmi.ResidueSpan | None = None, 
+              resSpan: gemmi.ResidueSpan | None = None, 
               atomList: list[gemmi.Atom]| None = None   ):
     """
     Only add a list with several items to the last argument of the hierarchy.
@@ -42,7 +42,7 @@ def createPDB( molecObj: gemmi.Structure | None = None,
             new_residSpan[0].add_atom( atom )
         residSpan = new_residSpan
     if  residSpan:
-        for resid in residSpan: new_chain[0].add_residue( resid )
+        for res in resSpan: new_chain[0].add_residue( res )
         chainList = new_chain
     if chainList:
         for chain in chainList: new_model[0].add_chain( chain )
@@ -104,6 +104,9 @@ def flatten_pdb(pdb: gemmi.Structure, level : str)-> (list[ gemmi.Model]|
         raise ValueError(("Invalid level specified. "
             "Choose from 'model', 'chain', 'residue', or 'atom'."))
 
+def resList_to_resSpan( res_lst: list) -> gemmi.ResidueSpan:
+    pdb = createPDB(resSpan = res_lst)
+    return flatten_pdb( pdb, "chain")[0].whole()
 ### Extract information functions
 
 def get_pdb_stats(structure: gemmi.Structure):
@@ -213,7 +216,7 @@ def get_chain_seq(lst_chain: list[gemmi.Chain]) -> list[str]:
 ### Selection functions
 
 def sele_pdb(pdb: gemmi.Structure, selection : Callable, 
-                                        *args, level: str = None, **kwargs) -> gemmi.Structure:
+                        *args, level: str = None, **kwargs) -> gemmi.Structure:
     """
     Perform filtering on a PDB structure based on a specified level and selection.
     Used to access a specific level of the gemmi.Structure hierarchy and filter
@@ -393,6 +396,12 @@ def sele_closest_res( lst_res: list[gemmi.Residue],
                 selected_res = res
         return [selected_res]
         # Chains level functions
+def sele_chain_idx( model: list[gemmi.Chain], lst_idx = [0],level = False ):
+    if level: return "chain"
+    chain_names = sorted([ chain.name for chain in model ])                     # Ensure alphabetical order
+    lst_chains = [ model[chain_name] for chain_name in chain_names ]
+    return [ lst_chains[idx] for idx in lst_idx ]
+
 def sele_closest_Chain( lst_chains: list[gemmi.Chain], 
                        CoM: gemmi.Position , verbose = False, 
                        level = False) -> list[gemmi.Chain]:
