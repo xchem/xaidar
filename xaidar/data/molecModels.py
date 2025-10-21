@@ -31,17 +31,17 @@ def createPDB( molecObj: gemmi.Structure | None = None,
     if not molecObj: new_molecObj = gemmi.Structure()
     if not modelList: new_model = [ gemmi.Model(1) ]
     if not chainList: new_chain = [ gemmi.Chain( "A") ]
-    if not residSpan:
-        new_residSpan = []
-        resid = gemmi.Residue()
-        resid.name = "MOL"
-        new_residSpan.append( resid )
+    if not resSpan:
+        new_resSpan = []
+        res = gemmi.Residue()
+        res.name = "MOL"
+        new_resSpan.append( res )
     
     if atomList:
         for atom in atomList:
-            new_residSpan[0].add_atom( atom )
-        residSpan = new_residSpan
-    if  residSpan:
+            new_resSpan[0].add_atom( atom )
+        resSpan = new_resSpan
+    if  resSpan:
         for res in resSpan: new_chain[0].add_residue( res )
         chainList = new_chain
     if chainList:
@@ -104,9 +104,45 @@ def flatten_pdb(pdb: gemmi.Structure, level : str)-> (list[ gemmi.Model]|
         raise ValueError(("Invalid level specified. "
             "Choose from 'model', 'chain', 'residue', or 'atom'."))
 
-def resList_to_resSpan( res_lst: list) -> gemmi.ResidueSpan:
+def resList_to_resSpan( res_lst: list[gemmi.Residue]) -> gemmi.ResidueSpan:
     pdb = createPDB(resSpan = res_lst)
     return flatten_pdb( pdb, "chain")[0].whole()
+
+def append_res_to_chain( new_res_lst, prot_chain_tobealtered: gemmi.Chain) -> None:
+    prot_chain_tobealtered.append_residues( new_res_lst, min_sep = 1 )
+    return None
+
+def add_res_to_chain( new_res_lst, new_res_pos_lst, 
+                                prot_chain_tobealtered: gemmi.Chain) -> None:
+    if ( ( not isinstance( new_res_lst, list) ) or 
+                                ( not isinstance( new_res_pos_lst, list)) ):
+        raise ValueError( " new_res, new_res_pos must be lists even "
+                                                    "for one element") 
+    elif len( new_res_lst) != len( new_res_pos_lst):
+        raise ValueError( " new_res, new_res_pos lists must be of same length")
+
+    lst_for_neg_index = [ (num, res) for num, res in 
+                                zip( new_res_pos_lst, new_res_lst) if num < 0 ]
+    lst_for_neg_index = sorted( lst_for_neg_index, key= lambda x: abs(x[0]))    # Sort negative indexes to process them in correct order
+    
+    lst_for_pos_index = [ (num, res) for num, res in 
+                                zip( new_res_pos_lst, new_res_lst) if num >= 0]
+    lst_for_pos_index = sorted( lst_for_pos_index, key= lambda x: x[0])         # So that residues are added in correct order to the right positions
+
+    sorted_pairs = lst_for_neg_index + lst_for_pos_index
+    for new_res_pos, new_res  in sorted_pairs:
+        if new_res_pos < 0:
+            new_res_pos = new_res_pos % len( prot_chain_tobealtered)            # Allow to account for negative indexing
+        res_nums = [ res.seqid.num for res in prot_chain_tobealtered]           # get original indexes of old residues
+        new_res.seqid.num = res_nums[new_res_pos]                               # update residue to be added seqid.num before adding it 
+        new_res_nums = res_nums[:new_res_pos] + [ num + 1 
+                                            for num in res_nums[new_res_pos:]]  # get new indexes for old residues          
+        for res, new_num in zip( prot_chain_tobealtered, new_res_nums):         # Update old residues with new indexes
+            res.seqid.num = new_num
+        prot_chain_tobealtered.add_residue(new_res, new_res_pos)                # Add new residue to chain
+    return None
+
+
 ### Extract information functions
 
 def get_pdb_stats(structure: gemmi.Structure):
