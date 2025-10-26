@@ -10,6 +10,8 @@ wheels/
 /data
 /data/*
 /tests/testdata/*
+tmp/*
+tmp
 
 # Virtual environments
 .venv
