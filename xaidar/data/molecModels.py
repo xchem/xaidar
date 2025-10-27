@@ -435,7 +435,7 @@ def sele_closest_res( lst_res: list[gemmi.Residue],
 def sele_chain_idx( model: list[gemmi.Chain], lst_idx = [0],level = False, sort = True ):
     if level: return "chain"
     chain_names = [ chain.name for chain in model ]  
-    if sort:  sorted( chain_names)                  # Ensure alphabetical order
+    if sort:  chain_names.sort()                  # Ensure alphabetical order
     lst_chains = [ model[chain_name] for chain_name in chain_names ]
     return [ lst_chains[idx] for idx in lst_idx ]
 
