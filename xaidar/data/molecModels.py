@@ -432,9 +432,10 @@ def sele_closest_res( lst_res: list[gemmi.Residue],
                 selected_res = res
         return [selected_res]
         # Chains level functions
-def sele_chain_idx( model: list[gemmi.Chain], lst_idx = [0],level = False ):
+def sele_chain_idx( model: list[gemmi.Chain], lst_idx = [0],level = False, sort = True ):
     if level: return "chain"
-    chain_names = sorted([ chain.name for chain in model ])                     # Ensure alphabetical order
+    chain_names = [ chain.name for chain in model ]  
+    if sort:  sorted( chain_names)                  # Ensure alphabetical order
     lst_chains = [ model[chain_name] for chain_name in chain_names ]
     return [ lst_chains[idx] for idx in lst_idx ]
 
@@ -699,7 +700,7 @@ class model_seqAlign( seqAlign):
         """
         Map matched residues between reference and query models based on sequence alignment.
         Args:
-        - match_type (str, optional): Type of match to consider. Defaults to "exact".
+        - match_type (str, optional): Type of match to consider. Defaults to "exact". Options: "all", "exact".
             Options:
             - "exact": Only exact matches of amino acids.
             - "all": Includes partial matches and conserved substitutions.
