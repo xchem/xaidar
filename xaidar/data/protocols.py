@@ -3,7 +3,7 @@ from pathlib import Path
 
 import gemmi
 
-from xaidar.data.molecModels import sele_pdb, sele_model, sele_Lig, sele_AA, sele_closest_Chain 
+from xaidar.data.molecModels import sele_pdb, sele_model, sele_Lig, sele_AA, sele_closest_Chain, sele_closest_res 
 from xaidar.data.molecModels import flatten_pdb
 from xaidar.data.molecModels import get_res_CoM
 
@@ -37,7 +37,7 @@ def load_and_filter_Proteins( datasets_dir: Path,
     protein structures and a log dictionary with stats.     
     """
     lst_prots = []                                                                # List to Save filtered proteins
-    prot_logs = {"sequence": [], "chainSize":[], "NumChains":[], "NumModels":[]}  # Log dictionary with stats for filtered proteins
+    prot_logs = {"dataset_name": [],"sequence": [], "chainSize":[], "NumChains":[], "NumModels":[]}  # Log dictionary with stats for filtered proteins
     
     datasets = [ dataset.name for dataset in datasets_dir.iterdir()            
             if dataset.is_dir() ]
@@ -64,22 +64,31 @@ def load_and_filter_Proteins( datasets_dir: Path,
         prot_logs["chainSize"].append( len(prot[0][startChain]) )                   # Get size of first chain            
         prot_logs["NumChains"].append( len(prot[0]) )                               # Get number of chains                      
         prot_logs["NumModels"].append( len(prot) )                                  # Get number of models 
+        prot_logs["dataset_name"].append( dataset)
         lst_prots.append( prot)
 
     return lst_prots, prot_logs
 
-def extract_lig_from_prot( datasets_dir: Path):
-    lst_ligs = []                                                                # List to Save filtered proteins
-    prot_logs = {"sequence": [], "chainSize":[], "NumChains":[], "NumModels":[]}  # Log dictionary with stats for filtered proteins
+def extract_lig_from_prot( datasets_dir: Path, coord = None):
+    lst_ligs = []        
+    lst_dataset_names = []                                                        # List to Save filtered proteins
+    multiple_lig_datasets = []
     
     datasets = [ dataset.name for dataset in datasets_dir.iterdir()            
             if dataset.is_dir() ]
     for dataset in datasets:
+        lst_dataset_names.append( dataset)
         pdb = gemmi.read_pdb( str(datasets_dir /                                # Load PDB
                             "{}/{}.pdb".format(dataset, dataset) ))  
-        lig =  sele_pdb( pdb, sele_Lig)                                         # Extract LIG   
+        lig =  sele_pdb( pdb, sele_Lig)                                         # Extract LIG  
+        if coord is not None:
+            lig = sele_pdb( lig, sele_closest_res, coord)                       # For each chain, select the closest res to coord
+            lig = sele_pdb( lig, sele_closest_Chain, 
+                           gemmi.Position(*coord) )                     # Select closest chain to coord 
         num_res = len( flatten_pdb( lig, "residue") )
         if num_res == 0: lst_ligs.append( None )                            
-        elif num_res > 0: lst_ligs.append( lig )                                                   # Append to list
-        else: raise ValueError("Error in extracting LIG from PDB: {}".format(dataset))
-    return lst_ligs 
+        elif num_res == 1: lst_ligs.append( lig )                                                   # Append to list
+        else:
+            multiple_lig_datasets.append( dataset )
+            #raise ValueError("Error in extracting LIG from PDB: {}".format(dataset))
+    return lst_ligs, lst_dataset_names, multiple_lig_datasets
