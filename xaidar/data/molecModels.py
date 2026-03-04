@@ -14,7 +14,13 @@ import Bio
 from Bio import PDB
 from Bio.PDB import PDBParser, MMCIFParser, PDBIO, MMCIFIO
 
+import MDAnalysis as mda
+
 import numpy as np
+
+####################
+# Gemmi Tools
+####################
 
 def loadPDB( pdbPath: Path | str ):
     return gemmi.read_pdb( str(pdbPath) )
@@ -109,11 +115,22 @@ def resList_to_resSpan( res_lst: list[gemmi.Residue]) -> gemmi.ResidueSpan:
     return flatten_pdb( pdb, "chain")[0].whole()
 
 def append_res_to_chain( new_res_lst, prot_chain_tobealtered: gemmi.Chain) -> None:
+    """
+    
+    """
     prot_chain_tobealtered.append_residues( new_res_lst, min_sep = 1 )
     return None
 
 def add_res_to_chain( new_res_lst, new_res_pos_lst, 
                                 prot_chain_tobealtered: gemmi.Chain) -> None:
+    """
+    Alter state of prot_chain_tobealtered object by adding residues to it.
+    Args:
+    - new_res_lst: list of residues to be added to protein
+    - new_res_pos_lst: final position in chain
+    Return:
+    - None
+    """
     if ( ( not isinstance( new_res_lst, list) ) or 
                                 ( not isinstance( new_res_pos_lst, list)) ):
         raise ValueError( " new_res, new_res_pos must be lists even "
@@ -170,6 +187,17 @@ def get_CoM( coords_array: np.ndarray, mass_array: np.ndarray):
     cm = np.sum(  mass_array * coords_array, axis = 0 ) / np.sum(mass_array)
     return cm
 
+def get_pairwise_dist( coords_array1: np.ndarray, coords_array2: np.ndarray):
+    """ Compute pairwise distance matrix for a set of coordinates.
+    Args:
+    - coords_array (np.ndarray): Array of shape (N, 3) containing N 3D coordinates.
+    Returns:
+    - np.ndarray: Pairwise distance matrix of shape (N, N).
+    """
+    diff = coords_array1[:, np.newaxis, :] - coords_array2[np.newaxis, :, :]      # Broadcasting to get difference matrix  (N,1,3) - (1,M,3) -> (N,M,3)
+    dist_matrix =  np.linalg.norm(diff, axis=2)
+    return dist_matrix
+
 # Atom level functions
 
 def get_atom_coord( lst_atoms: list[ gemmi.Atom ] ) -> np.ndarray:
@@ -216,7 +244,7 @@ def get_res_CoM( lst_res: list[ gemmi.Residue ]) -> np.ndarray:
     return np.array( lst_cm )
 
 def get_res_bfactors( lst_res: list[gemmi.Residue] | gemmi.Structure,
-                     sign_fig = 3) -> list[float]:
+                     sign_fig = 3, numpy_Array = False) -> list[float]:
     """ Get the b-factors for a list of residues """
     if isinstance( lst_res, gemmi.Structure):
         lst_res = flatten_pdb(lst_res, "residue")
@@ -224,7 +252,8 @@ def get_res_bfactors( lst_res: list[gemmi.Residue] | gemmi.Structure,
     bfactors = [ round( float( np.mean( [atom.b_iso for atom in res]) ), sign_fig)
                 if  isinstance(res, gemmi.Residue) and len(res) > 0 else None
                                              for res in lst_res ]
-
+    if numpy_Array:
+        bfactors = np.array( bfactors )
     return bfactors
 
 # Chain Level Function
@@ -249,7 +278,11 @@ def get_chain_seq(lst_chain: list[gemmi.Chain]) -> list[str]:
     return lst_seqs
 
 
-### Selection functions
+### Selection / Filtering / Extraction functions 
+# These functions do not alter or process the information in the pdbs 
+# into new one
+
+# Return a pdb
 
 def sele_pdb(pdb: gemmi.Structure, selection : Callable, 
                         *args, level: str = None, **kwargs) -> gemmi.Structure:
@@ -314,9 +347,9 @@ def sele_pdb(pdb: gemmi.Structure, selection : Callable,
 
     return new_pdb
 
-    # sele_pdb helper functions
+    # sele_pdb helper functions ####################
 
-def sele_Lig( lst_res: list[gemmi.Residue], level = False):
+def sele_Lig( lst_res: list[gemmi.Residue], level = False) -> list[gemmi.Residue]:
     if level: return "residue"
     return [ res for res in lst_res if res.name == "LIG" ]
 
@@ -359,6 +392,31 @@ def sele_others( pdb: gemmi.Structure ):
     others_res = sele_pdb( pdb,  sele_others_pt1, level= "residue") 
     others = sele_pdb( others_res, sele_others_pt2, level= "atom")
     return others
+
+        # Atom Level Function
+
+def sele_C_alpha( lst_atoms: list[gemmi.Atom], level = False) -> list[gemmi.Atom]:
+    """
+    Extract only the alpha carbon atom in each residue.
+    If there is an alpha carbon with alternative locations, a weighted average
+    is taken based off of the occupancies.
+    """
+    if level: return "atom"
+
+    lst_ca = [atom  for atom in lst_atoms  if atom.name == "CA"  ]
+    if len( lst_ca) == 1: return lst_ca
+    elif len( lst_ca) > 1: 
+        new_atom = deepcopy( lst_ca[0])
+        occ, pos =  list( zip( *[ ( [atom.occ], atom.pos.tolist() )for atom in lst_ca] ) )
+        occ, pos = np.array(occ), np.array( pos)
+        new_pos =  np.sum( pos*occ, axis = 0)
+        new_atom.pos, new_atom.occ = gemmi.Position( *new_pos), 1.0
+        return [new_atom]
+    else: raise Exception( "No alpha C found")
+
+
+
+        # Residue Level Function
 
 def sele_dist_AA( lst_res: list[gemmi.Residue], coord: gemmi.Position, 
                                         dist: float = 10, level = False ):
@@ -431,7 +489,10 @@ def sele_closest_res( lst_res: list[gemmi.Residue],
                 min_dist = dist
                 selected_res = res
         return [selected_res]
-        # Chains level functions
+    
+
+    # Chains level functions
+
 def sele_chain_idx( model: list[gemmi.Chain], lst_idx = [0],level = False, sort = True ):
     if level: return "chain"
     chain_names = [ chain.name for chain in model ]  
@@ -439,8 +500,18 @@ def sele_chain_idx( model: list[gemmi.Chain], lst_idx = [0],level = False, sort 
     lst_chains = [ model[chain_name] for chain_name in chain_names ]
     return [ lst_chains[idx] for idx in lst_idx ]
 
+def sele_chain_name( lst_chain: list[gemmi.Chain], level = False, chain_name: 
+                                str | list[str]  = None) -> list[gemmi.Chain]:
+    """Helper function of sele_pdb, used to extract one or several
+    chains into a pdb object based off of their
+    """
+    if level: return "chain"
+    if isinstance( chain_name, str): chain_name = list(chain_name )
+    return [ chain for chain in lst_chain if chain.name in chain_name]
+
+
 def sele_closest_Chain( lst_chains: list[gemmi.Chain], 
-                       CoM: gemmi.Position , verbose = False, 
+                       CoM: gemmi.Position | np.ndarray, verbose = False, 
                        level = False) -> list[gemmi.Chain]:
     
     """
@@ -453,6 +524,8 @@ def sele_closest_Chain( lst_chains: list[gemmi.Chain],
     Returns:
     - list[gemmi.Chain]: List containing the selected chain.
     """
+    if isinstance( CoM, np.ndarray): 
+        CoM = gemmi.Position( *CoM.flatten())
     if level: return "chain"
     if len(lst_chains) == 1:
         if verbose: print("Only one chain in the PDB, returning it")
@@ -475,7 +548,7 @@ def sele_model( lst_model: list[gemmi.Model], lst_idx = [0],level = False ):
     return [ lst_model[idx] for idx in lst_idx ]
 
 
-    ### END sele_pdb helper functions
+    ### END sele_pdb helper functions ###################
 
 def sele_res( pdb: gemmi.Structure, conditions: dict | None 
                                                     ) ->list[ gemmi.Residue]:
@@ -641,7 +714,7 @@ class seqAlign():
         def seq_match_idx( seq: str, matchIdx: list[int]) -> list[int]:         # Helper function to get indices
             gapCount = 0
             seq_indices = []
-            for seq_idx, char in enumerate(seq):
+            for seq_idx, char in enumerate(seq):                                # seq = self.result.traceback.ref or .query
                 if char == '-':
                     gapCount += 1
                 if seq_idx in matchIdx:
@@ -705,6 +778,8 @@ class model_seqAlign( seqAlign):
             - "exact": Only exact matches of amino acids.
             - "all": Includes partial matches and conserved substitutions.
         - gaps (bool, optional): Whether to include gaps in the mapping. Defaults to False.
+        This does not mean add gaps found in the reference but only on the query in
+        relation to the reference.
         Returns:
         - self: Updated object with matched residues.
         """
@@ -732,18 +807,20 @@ class model_seqAlign( seqAlign):
         return self
 
 
-    def check_match(self, verbose = True):
+    def check_match(self, verbose = True, match_type = "exact", gaps = False):
         """
         Check if the matched residues between reference and query models have 
         the same residue serial numbers.
         Args:
         - verbose (bool, optional): Whether to print mismatch information. 
             Defaults to True.
+        - match_type (str, optional): Type of match to consider. Defaults to "exact". Options: "all", "exact".
+        - gaps (bool, optional): Whether to include gaps in the mapping. Defaults to False
         Returns:
         - self: Updated object with .match_status.
         """
         if self.matched_indices is None:
-            self.map_matching_res()
+            self.map_matching_res(match_type = match_type, gaps = gaps)
         if len( self.matched_indices["Ref"]["Seq_Idx"]) != len(
                                      self.matched_indices["Query"]["Seq_Idx"]):
             raise ValueError("Mismatch in number of matched amino acids " \
@@ -767,6 +844,7 @@ class model_seqAlign( seqAlign):
         
 def get_aa_distribution( ref_model: gemmi.Structure, 
                          query_models_lst: list[gemmi.Structure],
+                         ref_aa_positions: None | list[int] = None,
                          ) -> dict:
     """
     Get the amino acid distribution at each position in the reference sequence
@@ -774,12 +852,14 @@ def get_aa_distribution( ref_model: gemmi.Structure,
     Args:
     - ref_model (gemmi.Structure): Reference protein structure.
     - query_models_lst (list[gemmi.Structure]): List of query protein structures.
+    - ref_aa_positions: choose which amino acids of the ref protein to look at.
+    Lowest position = 0, highest postion = len(ref_model) - 1
     Returns:
     - dict: Dictionary with positions as keys and lists of amino acids as values.
-    
     """
     ref_seq = get_chain_seq( ref_model )[0]
-    aa_distrib_dict = {ref_aa_pos : [] for ref_aa_pos in range(len(ref_seq))}   # Dictionary to store AA distribution at each position in ref seq       
+    if not ref_aa_positions: ref_aa_positions = list( range(len(ref_seq)))
+    aa_distrib_dict = {ref_aa_pos : [] for ref_aa_pos in ref_aa_positions}   # Dictionary to store AA distribution at each position in ref seq       
     for query_model in query_models_lst[:]:
         alignment  = model_seqAlign( ref_model, query_model)
         alignment.map_matching_res(match_type = "exact", gaps = True)
@@ -852,7 +932,7 @@ class structAlign():
         Also, aligns all atoms in the chain (can be modified to select specific atoms).
         ref_atoms: str
             Atom selection for reference structure alignment. 
-            Options: "All", "MainChain", "CaP"
+            Options: "All", "MainChain", "CaP" (C alpha)
         Returns:
         self: model_structAlign
             The instance with updated aligned_prot, transform, rmsd, rot_matrix, 
@@ -1016,3 +1096,26 @@ def biopy_to_gemmi( biopython_struct: 'Bio.PDB.Structure.Structure',
         gemmi_doc = gemmi.cif.read_string(file_string)                           # First, parse the string into a gemmi.cif.Document
         gemmi_struct = gemmi.make_structure_from_block(gemmi_doc.sole_block())   # Then, create a Gemmi Structure from the sole block
     return gemmi_struct
+
+####################
+# MDAnalysis Tools
+####################
+
+def gemmi_to_mda( gemmi_struct: gemmi.Structure, file_type: str = "mmcif"):
+    """
+    Convert a Gemmi Structure object to an MDAnalysis Universe object.
+    Args:
+    - gemmi_struct (gemmi.Structure): The Gemmi Structure object to convert.
+    - file_type (str): The file format to use for conversion ("pdb" or "mmcif").
+    Returns:
+    - MDAnalysis.Universe: The converted MDAnalysis Universe object.
+    """
+    if file_type == "pdb":
+        prot_block = gemmi_struct.make_pdb_string()
+    elif file_type == "mmcif" :
+        prot_block =  gemmi_struct.make_mmcif_block().as_string()
+    else:
+        raise ValueError("Unsupported file type. Use 'pdb' or 'mmcif'.")
+    
+    universe = mda.Universe(StringIO(prot_block), format=file_type)              # Create an MDAnalysis Universe from the string using StringIO
+    return universe 
