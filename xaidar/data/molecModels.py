@@ -450,14 +450,14 @@ def sele_res_idx( lst_res: list[gemmi.Residue], lst_slices: list[ tuple ],
     - list[gemmi.Residue]: Updated list of residue objects after removal.
     """
     if level: return "residue"
+    if isinstance( lst_res, gemmi.Structure):
+        lst_res = flatten_pdb( lst_res, "residue")
     lst_slices = sorted( lst_slices, reverse=True )
     new_lst_res = lst_res if slice_within else []
     for slice_idx in lst_slices:
         start, end = slice_idx
-        if slice_within:
-            del new_lst_res[start:end]
-        else:
-            new_lst_res = new_lst_res + lst_res[start:end]
+        if slice_within: del new_lst_res[start:end]
+        else:  new_lst_res = new_lst_res + lst_res[start:end]
     return new_lst_res
 
 
@@ -495,6 +495,8 @@ def sele_closest_res( lst_res: list[gemmi.Residue],
 
 def sele_chain_idx( model: list[gemmi.Chain], lst_idx = [0],level = False, sort = True ):
     if level: return "chain"
+    if isinstance(model, gemmi.Structure):
+        model = flatten_pdb( model, "chain")
     chain_names = [ chain.name for chain in model ]  
     if sort:  chain_names.sort()                  # Ensure alphabetical order
     lst_chains = [ model[chain_name] for chain_name in chain_names ]
@@ -506,6 +508,8 @@ def sele_chain_name( lst_chain: list[gemmi.Chain], level = False, chain_name:
     chains into a pdb object based off of their
     """
     if level: return "chain"
+    if isinstance(lst_chain, gemmi.Structure):
+        lst_chain = flatten_pdb( lst_chain, "chain")
     if isinstance( chain_name, str): chain_name = list(chain_name )
     return [ chain for chain in lst_chain if chain.name in chain_name]
 
@@ -526,6 +530,8 @@ def sele_closest_Chain( lst_chains: list[gemmi.Chain],
     """
     if isinstance( CoM, np.ndarray): 
         CoM = gemmi.Position( *CoM.flatten())
+    if isinstance(lst_chains, gemmi.Structure):
+        lst_chains = flatten_pdb( lst_chains, "chain")
     if level: return "chain"
     if len(lst_chains) == 1:
         if verbose: print("Only one chain in the PDB, returning it")

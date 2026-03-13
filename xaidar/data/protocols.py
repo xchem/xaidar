@@ -3,7 +3,8 @@ from pathlib import Path
 
 import gemmi
 
-from xaidar.data.molecModels import sele_pdb, sele_model, sele_Lig, sele_AA, sele_closest_Chain, sele_closest_res 
+from xaidar.data.molecModels import ( sele_pdb, sele_model, sele_Lig, sele_AA,
+                                      sele_closest_Chain, sele_closest_res )
 from xaidar.data.molecModels import flatten_pdb
 from xaidar.data.molecModels import get_res_CoM
 
@@ -23,9 +24,11 @@ def protein_processing(pdb: gemmi.Structure) -> gemmi.Structure:
 
 def load_and_filter_Proteins( datasets_dir: Path,
                              mean_CoM: gemmi.Position ,
+                             dataset_subset = False
                              ) -> tuple[list[gemmi.Structure], dict]:
     """
-    Load and filter protein structures based on proximity to a given center of mass (CoM).
+    Load and filter protein structures based on proximity to a given center of 
+    mass (CoM).
     Args:
     - datasets (list[str]): List of dataset names.
     - fileTypes (list[str]): List of file types corresponding to each dataset.
@@ -37,9 +40,15 @@ def load_and_filter_Proteins( datasets_dir: Path,
     protein structures and a log dictionary with stats.     
     """
     lst_prots = []                                                                # List to Save filtered proteins
-    prot_logs = {"dataset_name": [],"sequence": [], "chainSize":[], "NumChains":[], "NumModels":[]}  # Log dictionary with stats for filtered proteins
+    prot_logs = {"dataset_name": [],"sequence": [], "chainSize":[], 
+                 "NumChains":[], "NumModels":[]}                                # Log dictionary with stats for filtered proteins
     
-    datasets = [ dataset.name for dataset in datasets_dir.iterdir()            
+    if dataset_subset:
+        datasets = [ dataset.name for subset_name in dataset_subset
+                     for dataset in datasets_dir.iterdir()            
+                        if dataset.is_dir() and dataset.name == subset_name ]
+    else:
+        datasets = [ dataset.name for dataset in datasets_dir.iterdir()            
             if dataset.is_dir() ]
     for dataset in datasets:                                                    # Loop over datasets
         # print( "\n########################")
