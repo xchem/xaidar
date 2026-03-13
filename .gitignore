@@ -39,3 +39,6 @@ credentials.enc
 
 # Slurm Log Files
 slurm/logs/*
+
+# Images
+/images/*
