@@ -7,6 +7,7 @@ import re
 import numpy as np
 from datetime import datetime
 from collections import defaultdict
+from pathlib import Path
 
 # from xaidar.objFileSys import createTree
 
@@ -38,7 +39,7 @@ def saveList( lstToSave, pathToSave, readMe = None):
         print( "Saved!" )
     else: raise Exception( "There is an error with the pathToSave argument" ) 
 
-def savePyObj( objToSave, pathToSave): 
+def savePyObj( objToSave, pathToSave ): 
     if pathToSave != None:
         with open(pathToSave, "wb") as file:
             pickle.dump( objToSave, file)
@@ -61,7 +62,9 @@ def countFiles(filesDir, maxFiles = None, filesList = None ):
 
     """
     dirPath = filesDir
-    lstFiles = [ file for file in os.listdir(filesDir) if os.path.isfile( os.path.join(dirPath, file) ) and  file != "mergedFiles.pkl" ] if not filesList else filesList
+    lstFiles = [ file for file in os.listdir(filesDir) if 
+                os.path.isfile( os.path.join(dirPath, file) ) and  
+                file != "mergedFiles.pkl" ] if not filesList else filesList
     dct ={"TotalCount":0, "CountPerFile":[]}
     count = 0
     for file in lstFiles:
@@ -79,7 +82,9 @@ def countFiles(filesDir, maxFiles = None, filesList = None ):
 
 def mergeFiles( filesDir, maxFiles = None, filesList = None ):
     dirPath = filesDir
-    lstFiles = [ file for file in os.listdir(filesDir) if os.path.isfile( os.path.join(dirPath, file) ) and  file != "mergedFiles.pkl" ]  if not filesList else filesList
+    lstFiles = [ file for file in os.listdir(filesDir) if 
+                os.path.isfile( os.path.join(dirPath, file) ) and 
+                  file != "mergedFiles.pkl" ]  if not filesList else filesList
     lst = []
     count = 0
     with open( os.path.join( filesDir, "mergedFiles.pkl"), "wb" ) as file:
@@ -102,15 +107,19 @@ def mergeFiles( filesDir, maxFiles = None, filesList = None ):
 
     print( "Finished merging")
 
-def roundBytes( bytesSize:int ):
+def roundBytes( bytesSize:int, sign_figs = 2 ):
     """
     Rounds a size measured in bytes units to the closest upscale 
     """
     units = ['Byte', 'KB', 'MB', 'GB', 'TB']
+    finalUnit = None
     for n, unit in  zip( range( 0, 13, 3), units) :
-        if bytesSize >= 1*10**n: roundSize = f"{ bytesSize // (1*10**n) }{unit}"
+        if bytesSize == 0:  roundSize, unit = bytesSize, 'Byte'
+        elif bytesSize >= 1*10**n: 
+            roundSize, finalUnit =  round( bytesSize / (1*10**n) , sign_figs), unit
         else: break
-    return roundSize
+        
+    return roundSize, finalUnit
 
 def getFragFiles( paths ):
     """
@@ -124,7 +133,8 @@ def getFragFiles( paths ):
         print( folder )
         lst = []
         for content in os.listdir( path):
-            if os.path.isfile( os.path.join( path, content) ): lst.append( content )
+            if os.path.isfile( os.path.join( path, content) ): 
+                lst.append( content )
         lst.sort( key = lambda x: int( x[4:-4] )  ) 
         print( lst )
         filesDict[folder] = lst 
@@ -142,7 +152,8 @@ def getPklFileNames( paths: list ):
         print( folder )
         lst = []
         for content in os.listdir( path):
-            if os.path.isfile( os.path.join( path, content) ): lst.append( content )
+            if os.path.isfile( os.path.join( path, content) ): 
+                lst.append( content )
         lst.sort( ) 
         filesDict[folder] = lst 
     return filesDict
@@ -150,8 +161,10 @@ def getPklFileNames( paths: list ):
 def getRootFolders( dirPathS, pickleFilesDic):
     """
     Args:
-    - dirPathS (list): each element is a string of the path of a specific directory with .pkl files of objectKeys
-    - pickleFilesDic ( dict of list): a list of .pkl files for each specific directory
+    - dirPathS (list): each element is a string of the path of a specific 
+        directory with .pkl files of objectKeys
+    - pickleFilesDic ( dict of list): a list of .pkl files for each 
+        specific directory
     Output:
     - A dictionary with a a list of root names for each 
     """
@@ -182,12 +195,14 @@ def splitXChemData(xchemPath , savedFolder = None):
     """
     Args:
     - xchemPath (list): path for directory with XChem pickle files 
-    - savedFolder (list): list of subfolders to path to directory where to save data
+    - savedFolder (list): list of subfolders to path to directory where 
+        to save data
     """
     # Get and Order Pickle File Names 
     filesLst = []
     for content in os.listdir( xchemPath):
-        if os.path.isfile( os.path.join( xchemPath, content) ): filesLst.append( content )
+        if os.path.isfile( os.path.join( xchemPath, content) ): 
+            filesLst.append( content )
     filesLst.sort( key = lambda x: int( x[4:-4] )  ) 
     print( filesLst)
 
@@ -206,7 +221,8 @@ def splitXChemData(xchemPath , savedFolder = None):
                 if pathParts[1] == currentProject[0] and pathParts[2] == currentProject[1]:
                     projectLst.append( path )
                 else:
-                    saveList( projectLst, os.path.join( savedFolder, "data", f"{currentProject[0]}_{currentProject[1]}.pkl") ) # Save Data
+                    saveList( projectLst, os.path.join( savedFolder, 
+                        "data", f"{currentProject[0]}_{currentProject[1]}.pkl") ) # Save Data
                     print(f"\tProject: {currentProject[0]}_{currentProject[1]}")
                     projectLst = [ ]
                     projectLst.append( path )
@@ -216,7 +232,9 @@ def splitXChemData(xchemPath , savedFolder = None):
             else:
                 continue
     
-    for proj in datasetDic.keys(): saveList( datasetDic[proj], os.path.join( savedFolder, "dataset", f"{proj}.pkl" ) ) # Save Dataset
+    for proj in datasetDic.keys(): 
+        saveList( datasetDic[proj], os.path.join( savedFolder, 
+                                                 "dataset", f"{proj}.pkl" ) ) # Save Dataset
 
 def splitPanDDaData( panddaPath , savedFolder = []):
     """
@@ -227,7 +245,8 @@ def splitPanDDaData( panddaPath , savedFolder = []):
     # Get and Order Pickle File Names 
     filesLst = []
     for content in os.listdir( panddaPath):
-        if os.path.isfile( os.path.join( panddaPath, content) ): filesLst.append( content )
+        if os.path.isfile( os.path.join( panddaPath, content) ): 
+            filesLst.append( content )
     filesLst.sort( key = lambda x: int( x[4:-4] )  ) 
     print( filesLst)
 
@@ -253,6 +272,64 @@ def splitPanDDaData( panddaPath , savedFolder = []):
                     currentProject = pathParts[0]                        
 
     saveList( record, os.path.join( savedFolder, "000-record" ) )
+
+
+def glob_re( pattern, paths: list[Path] , outputPath = True):
+    """
+    Perform glob.glob() function with regex in a list of paths
+    Args:
+    - pattern (str): Regex expression
+    - paths (list[pathlib.Path]): List of paths to filter  
+    - outputPath (bool): If true, output pathlib.Path objs; 
+        If False, outputs path string objs
+    Output:
+    - iterator of string paths OR iterator of pahlib.Path objs
+    """  
+    if outputPath:
+        def pathFilter( path: Path ):
+            return re.compile( pattern).search( path.name)
+    else:
+        paths = [ path.name for path in paths]
+        def pathFilter( path: Path ):
+            return re.compile( pattern).search( path)
+    return filter( pathFilter, paths)
+
+
+def cp_rename_files(fileExtractFormat: dict, sourceFolder:Path,
+                     saveFolder:Path, molType = "all", 
+                    dataset = "x-0194" ):
+    """
+    Copy files from a .../[ model-building | inital-model ]/dataset directory
+    into a new directroy while renaming them according to a naming convention.
+    - 
+    """
+    for fileLabel, patterns in fileExtractFormat.items():
+        for pattern in patterns:
+            try:
+                lst_paths = list(glob_re(pattern, sourceFolder.iterdir(), outputPath=True))
+                lst_files = list(glob_re(pattern, sourceFolder.iterdir(), outputPath=False))
+            except:
+                print( f"Could not find matches for {pattern}")
+            fileType="."+pattern.split(".")[-1][:-1] if pattern != "sf.mmcif$" else "_sf.mmcif"
+            # sf mmcifs sometimes are found as .sf_mmcif or sf.mmcif
+
+            # if fileLabel == "event_map":
+            for idx, (file, path) in enumerate( zip(lst_files, lst_paths) ):
+                if fileLabel == "pandda_event_map": # only label w many subtypes
+                    new_file_name= "{}-{}-pandda_{}_{}{}".format(dataset, molType,
+                        re.search( "event_[0-9]*_[0-9]*", file).group(),
+                        re.search( "BDC_[0-9|.]*", file).group(), fileType)
+                else:
+                    if idx == 0:
+                        new_file_name = "{}-{}-{}{}".format(dataset, molType,
+                                                            fileLabel, fileType )
+                    else: # if more than one file ided for a specific regex
+                        new_file_name = "{}-{}-{}_{}{}".format(dataset, molType,
+                                                            idx, fileLabel, fileType )
+                    
+                new_file_path = saveFolder / new_file_name
+                copy2( path.as_posix(), new_file_path.as_posix() )
+    return None
 
 # def convertPathstoTree(pklDir: list, saveDir):
 #     """

@@ -7,15 +7,19 @@ wheels/
 *.egg-info
 
 # Data
-data/*
+/data
+/data/*
+/tests/testdata/*
+tmp/*
+tmp
 
 # Virtual environments
 .venv
 # Data files
-data/s3Data/*
-data/s3ObjKeys/*
-data/s3Sizes/*
-data/treeObjs/*
+/data/s3Data/*
+/data/s3ObjKeys/*
+/data/s3Sizes/*
+/data/treeObjs/*
 
 # Cookie cutter artifices
 xchem_db_project
@@ -32,3 +36,13 @@ playground*
 .gitsecret/paths
 !*.secret
 credentials.enc
+
+# Slurm Log Files
+slurm/logs/*
+
+# Images
+/images/*
+
+# qFit repo
+/qfit-3.0
+/qfit-3.0/*
