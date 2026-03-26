@@ -178,7 +178,9 @@ def get_pdb_stats(structure: gemmi.Structure):
                   not gemmi.find_tabulated_residue(res.name).is_amino_acid()] ) )  )
         if any([gemmi.find_tabulated_residue(res.name).is_amino_acid()
                 for res in model[chain_id] ]):
-            print( "\tContains A.A." )
+            aa_count = sum([1 for res in model[chain_id]
+            if gemmi.find_tabulated_residue(res.name).is_amino_acid() ])
+            print( f"\tContains {aa_count} A.A." )
     return None
 
 # General level functions
