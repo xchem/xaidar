@@ -20,5 +20,7 @@ dependencies = [
     "seaborn>=0.13.2",
     "sqlalchemy>=2.0.48",
 ]
-
 [tool.uv.workspace]
+members = [
+    "qfit-3.0",
+]
