@@ -42,3 +42,7 @@ slurm/logs/*
 
 # Images
 /images/*
+
+# qFit repo
+/qfit-3.0
+/qfit-3.0/*
